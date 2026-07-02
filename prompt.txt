@@ -1,0 +1,39 @@
+Ton objectifs est de faire un jeux en python.
+Le jeu doit etre un RTS.
+IL faut recolter une ressource avec des ouvrier pour produire d'autre ouvrier, et des untié combatante.
+
+Prévois plusieurs unité de combat de difrent type, plusieurs batiment, des batiment des défance.
+Prévois un IA pour que je puisse jouer.
+
+POur commencer n seul type de partie 1V1, moi contre l'ia, celui qui detruit tout le batiment de l'autre a gagné.
+
+Soit imaginatif 
+
+ C'est tres bien, maintenant je ve que tu revois completement l'aspect graphqieu, faux que ca soit au moins des graphisme d'un jeux 2000 - 2010, 
+ c'est beaucoup trop simpliste, choisis un pate graphique et pousse le truc
+ 
+ 
+ 
+ 
+Ajoute:
+- un brouillard de guerre
+- les infos sur les unité et batiement dans le .md, PV DEF, ATQ etc...
+- Des murailes
+- Met 2x plus de ressources par critaux
+- Un batiment pou ammeliorer l'ataque et la defence des unité
+
+
+Dans le dossier tu trouveras un jeux RTS sous python.
+Tu vas commencer par lire, comprendre et creer un claude.md pour que je n'ai pas a tout te reexpliquer a chaque fois.
+Tu dois tenir un autre document de suivi de développement quil faudra metre a jour a chaque modif, consigne a marqué dans claude.md.
+
+Ensuite tu vas ajouter les fonctionalité suivante:
+- Mettre un mode plein ecran
+- Ameliorer le pathfinding, les unité reste bloqué si un batiment se retrouvre sur leur trajectoire.
+- Un menu d'option au la création de partie qui contient pour l'instant trois option (vitesse de jeu, mode zombie, taille de map parametrable)
+  La vitesse de jeux doit pouvoir etre ralenti de 1 à 300, (1 par defaut)
+  Le mode zombie est une case a cocher, a chauqe mort d'unitée une piere tombale apparait puis au bout de 20 secondes un zombie apparait qui attaque tout les joueurs a proximité
+    Un zombie ne crée pas un zombie une fois mort
+    Quelques zombie doivent etre dispersé sur la map suffisament éloigné du spawn des joueurs pour que les jouers puisse se dévelopepr tranquilement.
+
+
