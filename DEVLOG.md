@@ -3,6 +3,16 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-02 (5e session) — Mise à jour du README (rattrapage)
+
+- Le README n'avait pas été actualisé lors de la session v0.4 : ajout des deux
+  champions d'élite (**Maelan** `N` et **Adryann** `Y`) dans la table des unités,
+  avec un paragraphe décrivant la dévoration d'Adryann (+10 % PV max, ni cadavre
+  ni tombe, petits cadeaux cosmétiques).
+- Mention de la version courante (0.4) en tête du README.
+- Formalisation de la règle correspondante dans CLAUDE.md (README toujours à jour).
+- Pas de modification de code, pas de test à relancer.
+
 ## 2026-07-02 (4e session) — Unités d'élite Maelan et Adryann (caserne) + compteur de version — v0.4
 
 ### Deux unités fortes produites à la Caserne (demande utilisateur)

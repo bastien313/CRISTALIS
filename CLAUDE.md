@@ -48,6 +48,7 @@ Le LAN est en lockstep déterministe : les deux machines simulent la même parti
 - Sprites : jamais de fichiers image, tout est peint dans `art.py` et mis en cache dans `ART`.
 - Un compteur de version doit etre tenu a jour et incrémenté a chaque modification, il doit etre visible dans le jeux au démarage.
 - Tu dois gerer le repo git a chaque modification.
+- Le Readme.md doit toujour etre mis a jour, c'est la porte d'entré lorsque l'on regarde le projet sur github.
 
 ## Pièges connus
 

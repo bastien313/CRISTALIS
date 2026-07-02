@@ -1,5 +1,8 @@
 # CRISTALIS — La Guerre des Cristaux
 
+*Version 0.4* — la version courante s'affiche au menu principal et dans le titre
+de la fenêtre.
+
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
 1v1 contre l'IA **ou contre un ami en LAN** : **le premier qui détruit tous les
 bâtiments de l'autre gagne.**
@@ -65,9 +68,16 @@ met la partie en pause pour les deux joueurs.
 | Mage cristallin `M` | Archerie | 165 | 50 | 20 | 165 | 58 | 2,3 s | 2 | Dégâts de zone (rayon 44) |
 | Golem de quartz `G` | Forge | 240 | 350 | 25 | 24 | 45 | 1,35 s | 3 | Tank lourd de première ligne |
 | Baliste `B` | Forge | 230 | 95 | 28 (**×3 vs bâtiments**) | 235 | 44 | 3,2 s | 3 | Engin de siège, surclasse les tours |
+| **Maelan** `N` | Caserne | 450 | 200 | 20 | 20 | 100 | 0,6 s | 3 | Ninja d'élite : rapide comme le vent, frappe sans répit |
+| **Adryann** `Y` | Caserne | 420 | 200 | 20 | 20 | 60 | 1,0 s | 3 | Bouboule vorace : dévore ses victimes (+10 % PV max) |
 
 La baliste tire de plus loin que la Tour de cristal (235 contre 190) : c'est
 l'arme idéale pour percer une base fortifiée, mais elle est fragile — escortez-la.
+
+**Champions d'élite** (débloqués à la Caserne) : *Maelan* est un petit ninja
+foudroyant qui enchaîne près de deux coups par seconde ; *Adryann*, la bouboule
+vorace, engloutit chaque victime — il ne laisse ni cadavre ni tombe, gagne
++10 % de PV max à chaque repas… et sème parfois un petit cadeau en chemin.
 
 ## Bâtiments
 
