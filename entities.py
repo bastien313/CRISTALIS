@@ -481,6 +481,10 @@ class Unit:
                 self.stuck_t += dt
             else:
                 self.stuck_t = 0.0
+                # Adryann sème parfois un petit caca derrière lui en marchant
+                # (RNG global consommé dans la sim : identique des deux côtés)
+                if self.kind == "adryann" and random.random() < dt * 0.5:
+                    game.drop_caca(self.pos - self.facing * (self.radius + 3))
         self._intend = 0.0
         self._last_pos = Vector2(self.pos)
 

@@ -3,6 +3,37 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-02 (4e session) — Unités d'élite Maelan et Adryann (caserne) + compteur de version — v0.4
+
+### Deux unités fortes produites à la Caserne (demande utilisateur)
+- **Maelan** (petit ninja) : 450 cristaux, 200 PV, 20 ATQ, portée 20, vitesse 100,
+  cadence 1,7 coups/s (cooldown 0.6), ravitaillement 3, hotkey [N]. Sprite : tenue
+  sombre, katana, écharpe et bandeau couleur d'équipe.
+- **Adryann** (bouboule vorace) : 420 cristaux, 200 PV, 20 ATQ, portée 20, vitesse 60,
+  cadence 1 coup/s, ravitaillement 3, hotkey [Y]. Sprite : gros ventre qui déborde,
+  bouche grande ouverte. Prix « proportionnels au soldat » (75 cristaux) : ~6× le
+  coût pour ~2× les PV et 2-3× les dégâts par seconde.
+- Mécaniques d'Adryann :
+  - **Dévoration** : quand il tue une unité (`Game.kill_unit`, attaquant mêlée),
+    il récupère 10 % de ses PV max ; la victime ne laisse ni cadavre ni pierre
+    tombale (mangée). Déterministe : uniquement état sim.
+  - **Petits cacas** : en marchant, ~1 fois toutes les 2 s (RNG global consommé
+    dans la sim, donc identique des deux côtés en LAN), il dépose un
+    `art.caca_sprite()` cosmétique dans `game.corpses` (s'estompe en 10 s).
+- Caserne : `prod=["soldat", "maelan", "adryann"]` ; IA : prefs caserne
+  3× soldat / 1× maelan / 1× adryann. Aide (F1) mise à jour (panneau +28 px).
+
+### Compteur de version (nouvelle règle CLAUDE.md)
+- `data.VERSION = "0.4"` : affiché en bas à droite de tous les écrans de menu
+  et dans le titre de la fenêtre. À incrémenter à chaque modification.
+
+### Tests
+- Script headless (scratchpad `test_new_units.py`) : données, sprites 16 orientations
+  × 9 factions, production caserne, dévoration (+20 PV, pas de tombe en mode zombie),
+  6 cacas semés en 12 s de marche, déterminisme (2 sims même seed → même `state_hash`).
+- `--autotest` OK (victoire Légion Karmin à t=521 s), smoke rendu 240 frames OK.
+- Aperçu visuel des sprites générés en PNG (soldat/maelan/adryann/caca).
+
 ## 2026-07-02 (3e session) — Découpage en modules, multi-joueurs 8 max + équipes, vignettes, QoL
 
 ### Découpage (plan de la session précédente, exécuté)

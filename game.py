@@ -327,6 +327,10 @@ class Game(RenderMixin):
     def ring(self, pos, radius, color):
         self.rings.append([Vector2(pos), 6, radius, color])
 
+    def drop_caca(self, pos):
+        """Petit caca d'Adryann : décor cosmétique, s'estompe comme un cadavre."""
+        self.corpses.append([art.caca_sprite(), Vector2(pos), 10.0, 10.0])
+
     def spawn_unit(self, kind, owner, pos, rally=None):
         u = Unit(kind, owner, pos)
         self.units.append(u)
@@ -350,17 +354,27 @@ class Game(RenderMixin):
             attacker.owner.units_killed += 1
         if unit in self.selection:
             self.selection.remove(unit)
-        # cadavre qui s'estompe
-        fr = art.unit_frames(unit.kind, unit.owner.pid)[art.frame_index(unit.facing)]
-        c = fr.copy()
-        c.fill((110, 110, 110, 255), special_flags=pygame.BLEND_RGBA_MULT)
-        self.corpses.append([c, Vector2(unit.pos), 6.0, 6.0])
+        # Adryann dévore sa victime : +10% de ses PV max, et pas de cadavre
+        eaten = (isinstance(attacker, Unit) and attacker.kind == "adryann"
+                 and attacker.hp > 0)
+        if eaten:
+            attacker.hp = min(attacker.max_hp, attacker.hp + attacker.max_hp * 0.10)
+            self.ring(unit.pos, 20, (238, 160, 140))
+            self.spark(unit.pos, (238, 160, 140), 6)
+            self.add_particle("glow", attacker.pos, (0, 0), 0.25,
+                              color=(120, 200, 110), size=18)
+        else:
+            # cadavre qui s'estompe
+            fr = art.unit_frames(unit.kind, unit.owner.pid)[art.frame_index(unit.facing)]
+            c = fr.copy()
+            c.fill((110, 110, 110, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            self.corpses.append([c, Vector2(unit.pos), 6.0, 6.0])
         self.spark(unit.pos, unit.owner.colors["light"], 8)
         self.add_particle("smoke", unit.pos, (0, -14), 1.2, size=5)
         self.play("die")
         # mode zombie : une pierre tombale, puis un zombie (les zombies
-        # eux-mêmes ne se relèvent pas)
-        if self.zombies_on and unit.kind != "zombie":
+        # eux-mêmes ne se relèvent pas ; une victime dévorée ne laisse rien)
+        if self.zombies_on and unit.kind != "zombie" and not eaten:
             self.tombstones.append([Vector2(unit.pos), TOMB_DELAY])
             if not self.zombie_warned:
                 self.zombie_warned = True

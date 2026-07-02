@@ -15,7 +15,7 @@ import art
 import netcode
 from art import clamp
 from data import (AUTOTEST, C_BAD, C_CRYSTAL, DEFAULT_CONFIG, DIFFICULTES,
-                  MAP_SIZES, MAX_PLAYERS, SCREEN_H, SCREEN_W, SMOKE)
+                  MAP_SIZES, MAX_PLAYERS, SCREEN_H, SCREEN_W, SMOKE, VERSION)
 
 
 def global_key(e):
@@ -100,6 +100,8 @@ class MenuUI:
         screen.blit(sub, sub.get_rect(center=(SCREEN_W / 2, 306)))
         f = self.font_s.render(foot, True, (120, 128, 144))
         screen.blit(f, f.get_rect(center=(SCREEN_W / 2, SCREEN_H - 26)))
+        v = self.font_s.render(f"v{VERSION}", True, (120, 128, 144))
+        screen.blit(v, v.get_rect(bottomright=(SCREEN_W - 12, SCREEN_H - 10)))
 
     def button(self, screen, r, label, desc="", enabled=True):
         hov = enabled and r.collidepoint(pygame.mouse.get_pos())

@@ -46,6 +46,8 @@ Le LAN est en lockstep déterministe : les deux machines simulent la même parti
 - Code et textes de jeu en **français** (l'utilisateur écrit en français, style décontracté).
 - Sections séparées par des bannières `# ---- nom` ; constantes de données en dicts dans `data.py`.
 - Sprites : jamais de fichiers image, tout est peint dans `art.py` et mis en cache dans `ART`.
+- Un compteur de version doit etre tenu a jour et incrémenté a chaque modification, il doit etre visible dans le jeux au démarage.
+- Tu dois gerer le repo git a chaque modification.
 
 ## Pièges connus
 

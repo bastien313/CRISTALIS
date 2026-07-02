@@ -22,7 +22,7 @@ import pygame
 # scripts de test (mp_sim.py, test_features.py).
 from data import (AUTOTEST, C_BAD, C_TEXT, DEFAULT_CONFIG, FACTION_NAMES,
                   MAP_SIZES, NET_DELAY, SCREEN_H, SCREEN_W, SMOKE, TICK_DT,
-                  VIEW_H)
+                  VERSION, VIEW_H)
 from game import Game
 from menus import (MenuUI, game_options, global_key, lan_host, lan_join, menu,
                    pick_difficulty, wait_handshake)
@@ -183,7 +183,7 @@ def main():
     # qu'étirer l'image — coordonnées souris et rendu inchangés.
     screen = pygame.display.set_mode((SCREEN_W, SCREEN_H),
                                      0 if SMOKE else pygame.SCALED)
-    pygame.display.set_caption("CRISTALIS — La Guerre des Cristaux")
+    pygame.display.set_caption(f"CRISTALIS — La Guerre des Cristaux (v{VERSION})")
     clock = pygame.time.Clock()
     ui = MenuUI()
     while True:

@@ -17,6 +17,10 @@ if AUTOTEST or SMOKE:
 
 import pygame
 
+# Compteur de version : à incrémenter à chaque modification du code.
+# Affiché au démarrage (menu + titre de fenêtre).
+VERSION = "0.4"
+
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
 MAP_SIZES = {"petite": ("Petite", 48, 34, 2),
@@ -81,6 +85,14 @@ UNIT_TYPES = {
     "zombie": dict(nom="Zombie", cout=0, hp=90, degats=9, portee=16, vitesse=40,
                    cooldown=1.1, supply=0, rayon=9, tps=8.0, aggro=260, splash=0,
                    desc="Mort-vivant : attaque tout ce qui vit à proximité."),
+    # unités d'élite de la caserne (cadence : Maelan 1,7 coups/s, Adryann 1/s)
+    "maelan": dict(nom="Maelan", cout=450, hp=200, degats=20, portee=20, vitesse=100,
+                   cooldown=0.6, supply=3, rayon=9, tps=15.0, aggro=170, splash=0,
+                   desc="Petit ninja d'élite : rapide comme le vent, frappe sans répit."),
+    "adryann": dict(nom="Adryann", cout=420, hp=200, degats=20, portee=20, vitesse=60,
+                    cooldown=1.0, supply=3, rayon=12, tps=16.0, aggro=160, splash=0,
+                    desc="Bouboule vorace : dévore ses victimes (+10% PV)… et sème "
+                         "des petits cadeaux."),
 }
 
 # ---------------------------------------------------------------- bâtiments
@@ -92,8 +104,9 @@ BUILDING_TYPES = {
                       prod=[], build_time=13, depot=False, degats=0, portee=0, cooldown=0,
                       desc="Canalise l'énergie : +8 de ravitaillement."),
     "caserne": dict(nom="Caserne", cout=150, hp=550, taille=(3, 2), supply=0,
-                    prod=["soldat"], build_time=20, depot=False, degats=0, portee=0, cooldown=0,
-                    desc="Forme les soldats de mêlée."),
+                    prod=["soldat", "maelan", "adryann"], build_time=20, depot=False,
+                    degats=0, portee=0, cooldown=0,
+                    desc="Forme les soldats de mêlée et les champions Maelan et Adryann."),
     "archerie": dict(nom="Archerie", cout=180, hp=480, taille=(3, 2), supply=0,
                      prod=["archer", "mage"], build_time=24, depot=False, degats=0, portee=0,
                      cooldown=0, desc="Forme archers et mages cristallins."),
@@ -137,6 +150,7 @@ BUILD_HOTKEYS = {"qg": pygame.K_g, "obelisque": pygame.K_o, "caserne": pygame.K_
                  "sanctuaire": pygame.K_s, "muraille": pygame.K_m, "porte": pygame.K_e}
 PROD_HOTKEYS = {"ouvrier": pygame.K_o, "soldat": pygame.K_s, "archer": pygame.K_a,
                 "mage": pygame.K_m, "golem": pygame.K_g, "baliste": pygame.K_b,
+                "maelan": pygame.K_n, "adryann": pygame.K_y,
                 "up_atq": pygame.K_a, "up_def": pygame.K_d}
 
 # tempo : divise l'horloge du plan de construction de l'IA (plus grand = plus lent)

@@ -450,7 +450,7 @@ class RenderMixin:
 
     # ------------------------------------------------------------ overlays
     def draw_help(self, screen):
-        w, h = 640, 480
+        w, h = 640, 508
         r = pygame.Rect(SCREEN_W / 2 - w / 2, VIEW_H / 2 - h / 2, w, h)
         screen.blit(art.panel_img(w, h), r.topleft)
         lines = [
@@ -471,7 +471,8 @@ class RenderMixin:
             ("Les Obélisques augmentent le ravitaillement (limite d'unités).", C_TEXT),
             ("", C_TEXT),
             ("ARMÉE", C_CRYSTAL),
-            ("Caserne → Soldat [S]    Archerie → Archer [A], Mage [M]", C_TEXT),
+            ("Caserne → Soldat [S], Maelan [N], Adryann [Y]", C_TEXT),
+            ("Archerie → Archer [A], Mage [M]", C_TEXT),
             ("Forge → Golem [G], Baliste [B] (dégâts x3 sur les bâtiments)", C_TEXT),
             ("Tour de cristal : défense automatique", C_TEXT),
             ("Sanctuaire : améliore l'Attaque [A] et la Défense [D] (3 niveaux)", C_TEXT),

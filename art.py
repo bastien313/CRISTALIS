@@ -154,7 +154,7 @@ def vignette(w, h):
 
 # ---------------------------------------------------------------- unités
 UNIT_CANVAS = {"ouvrier": 40, "soldat": 46, "archer": 44, "mage": 46, "golem": 62,
-               "baliste": 56, "zombie": 44}
+               "baliste": 56, "zombie": 44, "maelan": 44, "adryann": 52}
 _METAL = (152, 160, 172)
 _METAL_L = (204, 212, 222)
 _SKIN = (232, 196, 158)
@@ -374,9 +374,99 @@ def _paint_zombie(d, s, col):
     pygame.draw.line(d, (40, 44, 34), (c + 6 * s, c + 2 * s), (c + 7.5 * s, c + 2.6 * s), s)
 
 
+def _paint_maelan(d, s, col):
+    c = UNIT_CANVAS["maelan"] * s // 2
+    ink = (34, 36, 46)      # tenue de ninja sombre
+    ink_l = (58, 62, 78)
+    # katana tendu vers l'avant
+    pygame.draw.polygon(d, _METAL_L, [(c + 6 * s, c - 1.4 * s), (c + 19 * s, c - 0.4 * s),
+                                      (c + 19 * s, c + 0.4 * s), (c + 6 * s, c + 1.4 * s)])
+    pygame.draw.line(d, WHITE, (c + 7 * s, c - 0.6 * s), (c + 18 * s, c), s)
+    pygame.draw.line(d, (60, 52, 40), (c + 6 * s, c - 2.4 * s), (c + 6 * s, c + 2.4 * s), 2 * s)
+    # écharpe couleur d'équipe flottant derrière
+    pygame.draw.polygon(d, col["main"],
+                        [(c - 2 * s, c - 4 * s), (c - 13 * s, c - 7 * s),
+                         (c - 15 * s, c - 2 * s), (c - 4 * s, c)])
+    pygame.draw.polygon(d, shade(col["main"], 0.55),
+                        [(c - 2 * s, c - 4 * s), (c - 13 * s, c - 7 * s),
+                         (c - 15 * s, c - 2 * s), (c - 4 * s, c)], s)
+    # corps compact accroupi
+    pygame.draw.circle(d, shade(ink, 0.7), (c, c), 7 * s)
+    pygame.draw.circle(d, ink_l, (c - s, c - s), 6 * s)
+    pygame.draw.circle(d, lightc(ink_l, 0.2), (c - 3 * s, c - 3 * s), 2.2 * s)
+    # ceinture couleur d'équipe
+    pygame.draw.line(d, col["main"], (c - 6 * s, c + 2 * s), (c + 5 * s, c + 2 * s), 2 * s)
+    # seconde lame dans le dos
+    pygame.draw.line(d, shade(_METAL, 0.8), (c - 6 * s, c + 6 * s), (c - 11 * s, c + 10 * s), 2 * s)
+    # tête masquée + bandeau d'équipe
+    pygame.draw.circle(d, ink, (c + 2 * s, c), 4.6 * s)
+    pygame.draw.circle(d, shade(ink, 0.5), (c + 2 * s, c), 4.6 * s, s)
+    pygame.draw.line(d, col["main"], (c - s, c - 3.4 * s), (c + 3 * s, c - 3.8 * s), int(1.6 * s))
+    # fente du masque : yeux clairs
+    pygame.draw.line(d, _SKIN, (c + 3.4 * s, c - 1.6 * s), (c + 5.6 * s, c - 0.4 * s), int(1.8 * s))
+    for dy in (-1.5, 0.4):
+        pygame.draw.circle(d, (32, 30, 36), (c + 4.8 * s, c + dy * s), 0.7 * s)
+
+
+def _paint_adryann(d, s, col):
+    c = UNIT_CANVAS["adryann"] * s // 2
+    skin = _SKIN
+    # gros bidon rond en tunique couleur d'équipe
+    pygame.draw.circle(d, shade(col["main"], 0.45), (c, c), 11 * s)
+    pygame.draw.circle(d, col["main"], (c - s, c - s), 10 * s)
+    pygame.draw.circle(d, lightc(col["main"], 0.35), (c - 4 * s, c - 4 * s), 4 * s)
+    # ventre qui déborde de la tunique
+    pygame.draw.circle(d, shade(skin, 0.85), (c + 3 * s, c), 5.5 * s)
+    pygame.draw.circle(d, skin, (c + 2.5 * s, c - 0.5 * s), 5 * s)
+    pygame.draw.circle(d, shade(skin, 0.6), (c + 3 * s, c), 5.5 * s, s)
+    # nombril
+    pygame.draw.circle(d, shade(skin, 0.55), (c + 4 * s, c + s), 0.8 * s)
+    # petits bras potelés
+    for dy in (-9, 9):
+        pygame.draw.circle(d, skin, (c + 3 * s, c + dy * s), 3 * s)
+        pygame.draw.circle(d, shade(skin, 0.6), (c + 3 * s, c + dy * s), 3 * s, s)
+    # grosse tête joufflue collée au corps
+    pygame.draw.circle(d, shade(skin, 0.8), (c + 8 * s, c), 5 * s)
+    pygame.draw.circle(d, skin, (c + 7.5 * s, c - 0.5 * s), 4.6 * s)
+    # bouche grande ouverte, prête à dévorer
+    pygame.draw.circle(d, (86, 34, 30), (c + 11 * s, c), 2.4 * s)
+    pygame.draw.circle(d, (140, 60, 52), (c + 11 * s, c), 1.4 * s)
+    pygame.draw.line(d, WHITE, (c + 9.6 * s, c - 1.8 * s), (c + 11.6 * s, c - 1.6 * s), s)
+    # petits yeux gourmands
+    for dy in (-2.6, 2.6):
+        pygame.draw.circle(d, (32, 30, 36), (c + 9 * s, c + dy * s), 0.9 * s)
+    # joues roses
+    for dy in (-3.8, 3.8):
+        pygame.draw.circle(d, (238, 160, 140), (c + 6.5 * s, c + dy * s), 1.2 * s)
+    # touffe de cheveux
+    pygame.draw.circle(d, (86, 56, 30), (c + 5 * s, c - 3.5 * s), 1.6 * s)
+
+
 _PAINTERS = {"ouvrier": _paint_ouvrier, "soldat": _paint_soldat, "archer": _paint_archer,
              "mage": _paint_mage, "golem": _paint_golem, "baliste": _paint_baliste,
-             "zombie": _paint_zombie}
+             "zombie": _paint_zombie, "maelan": _paint_maelan, "adryann": _paint_adryann}
+
+
+def caca_sprite():
+    """Petit tas marron à spirale laissé par Adryann, dessiné en 3x puis lissé."""
+    key = ("caca",)
+    if key not in ART:
+        s = 3
+        w, h = 14, 12
+        d = pygame.Surface((w * s, h * s), pygame.SRCALPHA)
+        brun = (118, 78, 40)
+        # trois boules empilées
+        pygame.draw.ellipse(d, shade(brun, 0.7), (2 * s, 7 * s, 10 * s, 4.6 * s))
+        pygame.draw.ellipse(d, brun, (3.4 * s, 4.4 * s, 7.2 * s, 4.4 * s))
+        pygame.draw.ellipse(d, lightc(brun, 0.15), (4.8 * s, 2.2 * s, 4.4 * s, 3.6 * s))
+        # pointe en spirale
+        pygame.draw.polygon(d, lightc(brun, 0.25), [(6.4 * s, 3 * s), (8.6 * s, 2.6 * s),
+                                                    (7.6 * s, 0.8 * s)])
+        # reflets
+        pygame.draw.line(d, lightc(brun, 0.4), (4.4 * s, 8 * s), (6.4 * s, 8.4 * s), s)
+        pygame.draw.line(d, lightc(brun, 0.4), (5 * s, 5.4 * s), (6.4 * s, 5.8 * s), s)
+        ART[key] = pygame.transform.smoothscale(d, (w, h))
+    return ART[key]
 
 
 def tombstone_sprite():

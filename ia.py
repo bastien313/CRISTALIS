@@ -154,7 +154,8 @@ class AIController:
     def produce_army(self, by_kind):
         g = self.game
         produced = False
-        prefs = {"caserne": ["soldat"], "archerie": ["archer", "archer", "mage"],
+        prefs = {"caserne": ["soldat", "soldat", "soldat", "maelan", "adryann"],
+                 "archerie": ["archer", "archer", "mage"],
                  "forge": ["golem", "golem", "baliste"],
                  "sanctuaire": ["up_atq", "up_def"]}
         for kind, choices in prefs.items():
