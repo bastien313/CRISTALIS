@@ -3,6 +3,61 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-02 (3e session) — Découpage en modules, multi-joueurs 8 max + équipes, vignettes, QoL
+
+### Découpage (plan de la session précédente, exécuté)
+- `cristalis.py` (~3200 lignes) éclaté en : `data.py` (constantes, importé en premier
+  pour l'env SDL headless), `entities.py`, `ia.py`, `render.py` (RenderMixin, dessin
+  pur), `game.py` (Game = sim + commandes + entrées), `menus.py`, `cristalis.py`
+  (entrée + boucles, réexports pour les scripts de test).
+- Simplifications au passage : MAP_W/WORLD_W ne sont plus des globales mutées mais
+  des **attributs de Game** (fin du piège documenté) ; `Game.update` scindé
+  (`update_effects`, `check_victory`) ; imports nettoyés.
+
+### Multi-joueurs (max 8) + équipes
+- `config["players"]` : liste de slots `{ai, team}` (2 à 8). Écran `game_options`
+  refait en deux colonnes : gauche = joueurs (ajout/retrait d'IA, clic sur
+  « Équipe N » pour cycler, pastille couleur), droite = vitesse/zombies/carte.
+- `Player.team` + `allied()` : ciblage, aggro, splash du mage, portes (ouvertes à
+  l'équipe), brouillard (vision d'équipe) et pathfinding (portes alliées passantes)
+  sont par équipe. Victoire = dernière équipe avec un bâtiment (`Game.winner` =
+  numéro d'équipe) ; message « X est éliminé » par faction.
+- 8 couleurs de faction dans `art.PLAYER_COLORS` + zombies déplacés en pid 8
+  (`ZOMBIE_PID`), exclus via `Game.combatants`.
+- Les IA (slots 2+) tournent aussi en LAN : déterministes, donc lockstep OK
+  (validé par mp_sim 2 processus en 2v2 + zombies).
+- Cartes : petite ≤ 2 joueurs, moyenne ≤ 4, grande ≤ 8 (auto-ajustement du menu).
+
+### Génération de map selon le nombre de joueurs
+- 2 joueurs : coins opposés classiques. 3+ : bases réparties sur une ellipse
+  (joueur 0 en bas à gauche), chemin de chaque base vers le centre, un gisement
+  de cristaux par base décalé vers le centre + gisements neutres proportionnels.
+- Zombies initiaux : seuil de distance aux bases dégressif (600/450/300 px).
+
+### Vignettes de sélection (demande utilisateur)
+- Sélection multiple : grille de vignettes (icône + barre de PV) jusqu'à 42
+  éléments (14 × 3), unités **et** bâtiments, « +N » au-delà. Clic = isoler,
+  Shift+clic = retirer de la sélection.
+
+### QoL (demandes utilisateur)
+- File de chantiers : Shift+placements successifs → l'ouvrier enchaîne
+  automatiquement les constructions (`Unit.build_queue`, vidée par un ordre
+  explicite). HUD : « Chantiers en file : N » sur l'ouvrier.
+- Groupes de contrôle : acceptent les bâtiments ; double-appui sur 1..5 (<0,4 s)
+  centre la caméra sur le groupe (purement local).
+
+### Tests
+- `--autotest` OK (victoire IA à t=339 s), smoke OK.
+- `test_features.py` : 28/28 OK — pathfinding (2 cas), zombies (6), équipes/alliés
+  (5 dont victoire d'équipe), 8 joueurs FFA sur grande (espacement min 675 px),
+  déterminisme des hashes (2 joueurs et 2v2 avec zombies), 3 tailles de carte,
+  file de construction (3 chantiers enchaînés), groupes + double-appui caméra,
+  clamps de vitesse.
+- `mp_sim.py` 2 processus (2 humains + 2 IA en 2v2, zombies, 1400 ticks) :
+  hashes identiques à tous les points de comparaison.
+- Rendu headless : vignettes (50 unités + bâtiments), partie 4 joueurs, tombes.
+
+
 ## 2026-07-02 — Plein écran, pathfinding A*, options de partie, mode zombie, nerf IA facile
 
 ### Plein écran (F11)

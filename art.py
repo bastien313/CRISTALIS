@@ -12,9 +12,16 @@ import pygame
 
 WHITE = (255, 255, 255)
 
+# Une entrée par faction (pid 0..7) + la dernière pour les zombies (pid 8).
 PLAYER_COLORS = [
     dict(main=(64, 132, 245), dark=(30, 64, 128), light=(150, 198, 255)),   # Azur
     dict(main=(228, 74, 62), dark=(118, 34, 30), light=(255, 158, 145)),    # Karmin
+    dict(main=(52, 190, 120), dark=(22, 88, 56), light=(150, 235, 185)),    # Émeraude
+    dict(main=(156, 96, 235), dark=(74, 42, 120), light=(205, 170, 255)),   # Améthyste
+    dict(main=(240, 150, 50), dark=(130, 76, 22), light=(255, 205, 140)),   # Ambre
+    dict(main=(235, 110, 170), dark=(120, 48, 86), light=(255, 180, 215)),  # Églantine
+    dict(main=(58, 200, 205), dark=(24, 96, 100), light=(150, 240, 240)),   # Turquoise
+    dict(main=(222, 188, 64), dark=(112, 92, 26), light=(250, 228, 150)),   # Dorée
     dict(main=(108, 158, 76), dark=(48, 76, 40), light=(170, 224, 136)),    # Zombies
 ]
 
