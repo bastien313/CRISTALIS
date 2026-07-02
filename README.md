@@ -4,8 +4,9 @@
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
-1v1 contre l'IA **ou contre un ami en LAN** : **le premier qui détruit tous les
-bâtiments de l'autre gagne.**
+De **2 à 8 joueurs**, en solo contre l'IA ou **avec des amis en LAN**, seul ou
+**en équipes** (avec des zombies optionnels) : **la dernière équipe qui garde au
+moins un bâtiment debout gagne.**
 
 Direction artistique « pré-rendu » façon RTS des années 2000 : tous les sprites
 (unités orientées sur 16 directions, bâtiments détaillés, arbres, interface à
