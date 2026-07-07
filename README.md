@@ -1,12 +1,16 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.14* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.15* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
 De **2 à 8 joueurs**, en solo contre l'IA ou **avec des amis en LAN**, seul ou
 **en équipes** (avec des zombies optionnels) : **la dernière équipe qui garde au
 moins un bâtiment debout gagne.**
+
+Quatre tailles de cartes, de la petite escarmouche à la **carte géante**
+(512×256 cases) : le fond est généré par morceaux à la demande, la taille de
+la carte ne pèse donc ni sur la mémoire ni sur le temps de lancement.
 
 Direction artistique « pré-rendu » façon RTS des années 2000 : tous les sprites
 (unités orientées sur 16 directions, bâtiments détaillés, arbres, interface à

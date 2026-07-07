@@ -312,7 +312,7 @@ class Game(RenderMixin):
         # les positions sont relatives à map_w/map_h (taille paramétrable) et
         # au nombre de joueurs : 2 = coins opposés, sinon bases en ellipse
         mw, mh = self.map_w, self.map_h
-        self.bg = art.make_terrain(self.world_w, self.world_h, TILE)
+        self.bg = art.Terrain(self.world_w, self.world_h, TILE)
         combats = self.combatants
         n = len(combats)
         if self.survival_mode:
@@ -841,10 +841,11 @@ class Game(RenderMixin):
                 self._reveal(vis, b.rect.centerx, b.rect.centery,
                              8.0 if b.kind == "tour" else 6.5)
         self.fog_visible = vis
+        # exploré |= visible, sans boucle Python (octets 0/1 : le OU bit à
+        # bit sur les entiers équivaut au OU case par case)
         exp = self.fog_explored
-        for i, v in enumerate(vis):
-            if v:
-                exp[i] = 1
+        merged = int.from_bytes(exp, "little") | int.from_bytes(vis, "little")
+        self.fog_explored = bytearray(merged.to_bytes(len(exp), "little"))
         self.fog_version += 1
 
     def fog_state(self, x, y):

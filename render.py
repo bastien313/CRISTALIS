@@ -18,6 +18,11 @@ from data import (BUILD_HOTKEYS, BUILD_MENU, BUILDING_TYPES, C_BAD, C_CRYSTAL,
                   UNIT_TYPES, UPGRADE_TYPES, VIEW_H, VIEW_W, prod_stats)
 from entities import Building, Unit
 
+# alpha du voile minimap selon l'état d'une case : 0 = inexploré (opaque),
+# 1 = exploré (semi), 2/3 = visible (transparent) — cf. draw_minimap
+FOG_MINI_ALPHA = bytes(220 if s == 0 else 116 if s == 1 else 0
+                       for s in range(256))
+
 
 class RenderMixin:
     """Toutes les méthodes de dessin de Game."""
@@ -70,7 +75,7 @@ class RenderMixin:
     def draw(self, screen):
         cam = self.cam
         view = screen.subsurface((0, 0, VIEW_W, VIEW_H))
-        view.blit(self.bg, (0, 0), (cam.x, cam.y, VIEW_W, VIEW_H))
+        self.bg.draw(view, cam)
 
         # couche sol : décombres, cadavres, pierres tombales
         for surf, pos, t, T in self.rubble:
@@ -429,7 +434,7 @@ class RenderMixin:
     def draw_minimap(self, screen):
         r = self.minimap_rect()
         if self.mini_bg is None:
-            self.mini_bg = pygame.transform.smoothscale(self.bg, (r.w, r.h))
+            self.mini_bg = self.bg.minimap(r.w, r.h)
         screen.blit(self.mini_bg, r.topleft)
         sx, sy = r.w / self.world_w, r.h / self.world_h
         for c in self.crystals:
@@ -446,17 +451,22 @@ class RenderMixin:
                 continue
             screen.set_at((int(r.x + u.pos.x * sx), int(r.y + u.pos.y * sy)),
                           u.owner.colors["light"])
-        # voile de brouillard sur la minimap
+        # voile de brouillard sur la minimap — tout en opérations sur octets
+        # (une boucle Python case par case coûtait ~28 ms sur une carte géante)
         if self._fog_mini is None or self._fog_mini[0] != self.fog_version:
-            small = pygame.Surface((self.map_w, self.map_h), pygame.SRCALPHA)
-            for ty in range(self.map_h):
-                row = ty * self.map_w
-                for tx in range(self.map_w):
-                    i = row + tx
-                    if self.fog_visible[i]:
-                        continue
-                    a = 116 if self.fog_explored[i] else 220
-                    small.set_at((tx, ty), (8, 10, 18, a))
+            n = self.map_w * self.map_h
+            # état par case sans boucle : visible*2 + exploré (octets 0/1,
+            # donc jamais de retenue), puis alpha via table de transposition
+            state = (int.from_bytes(self.fog_visible, "little") * 2
+                     + int.from_bytes(self.fog_explored, "little"))
+            alpha = state.to_bytes(n, "little").translate(FOG_MINI_ALPHA)
+            rgba = bytearray(n * 4)
+            rgba[0::4] = b"\x08" * n   # (8, 10, 18) : teinte du voile
+            rgba[1::4] = b"\x0a" * n
+            rgba[2::4] = b"\x12" * n
+            rgba[3::4] = alpha
+            small = pygame.image.frombuffer(bytes(rgba),
+                                            (self.map_w, self.map_h), "RGBA")
             self._fog_mini = (self.fog_version,
                               pygame.transform.smoothscale(small, (r.w, r.h)))
         screen.blit(self._fog_mini[1], r.topleft)

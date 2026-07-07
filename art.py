@@ -923,66 +923,192 @@ def rock_sprite(seed):
 
 
 # --------------------------------------------------------------- terrain
-def make_terrain(world_w, world_h, tile, seed=7):
-    rng = random.Random(seed)
-    mw, mh = world_w // tile, world_h // tile
-    bg = pygame.Surface((world_w, world_h))
-    # bruit de valeur bilinéaire, 2 octaves
-    g1 = [[rng.random() for _ in range(mw // 4 + 3)] for _ in range(mh // 4 + 3)]
-    g2 = [[rng.random() for _ in range(mw // 2 + 3)] for _ in range(mh // 2 + 3)]
+TERRAIN_CHUNK = 256          # côté d'un chunk de fond en pixels (8 cases)
+TERRAIN_MAX_CHUNKS = 160     # cache LRU : 160 × 256×256×4 ≈ 42 Mo maximum
 
-    def sample(grid, x, y, cell):
+_T_DARK = (58, 94, 50)
+_T_LIGHT = (98, 136, 68)
+_T_DRY = (120, 128, 68)
+_T_FLOWERS = [(220, 220, 240), (235, 210, 120), (150, 210, 240)]
+# densités par chunk de 8×8 cases, calées sur l'ancien make_terrain qui posait
+# 1600 touffes / 240 fleurs / 160 cailloux sur une carte moyenne (64×44 cases)
+_T_TUFTS, _T_FLOWER_N, _T_ROCK_N = 36, 5, 4
+
+
+class Terrain:
+    """Fond de carte procédural découpé en chunks générés à la demande.
+
+    Remplace l'ancienne surface unique plein monde : une carte 512×256 cases
+    pesait 537 Mo de RAM et plusieurs secondes de génération au lancement.
+    Ici la mémoire est bornée par un cache LRU quelle que soit la taille de
+    la carte, et le coût de génération est étalé pendant le défilement.
+    Rendu purement local (RNG dédiés) : la sim n'y touche jamais.
+    """
+
+    def __init__(self, world_w, world_h, tile, seed=7):
+        self.world_w, self.world_h = world_w, world_h
+        self.tile = tile
+        self.seed = seed
+        rng = random.Random(seed)
+        mw, mh = world_w // tile, world_h // tile
+        # bruit de valeur bilinéaire, 2 octaves (grilles minuscules)
+        self.g1 = [[rng.random() for _ in range(mw // 4 + 3)]
+                   for _ in range(mh // 4 + 3)]
+        self.g2 = [[rng.random() for _ in range(mw // 2 + 3)]
+                   for _ in range(mh // 2 + 3)]
+        # grandes taches douces pour casser la grille (46 sur carte moyenne)
+        cs = TERRAIN_CHUNK
+        self._blob_index = {}
+        for _ in range(max(10, int(46 * mw * mh / (64 * 44)))):
+            rr = rng.randint(60, 190)
+            col = rng.choice([(28, 58, 32, 9), (126, 156, 84, 8), (40, 80, 40, 8)])
+            x = rng.randint(-rr, world_w - rr)
+            y = rng.randint(-rr, world_h - rr)
+            blob = (x, y, rr, col)
+            for cy in range(y // cs, (y + rr * 2) // cs + 1):
+                for cx in range(x // cs, (x + rr * 2) // cs + 1):
+                    self._blob_index.setdefault((cx, cy), []).append(blob)
+        self.overlays = []       # (surface, x, y) : places et chemins cuits
+        self._overlay_index = {}
+        self.chunks = {}         # (cx, cy) -> Surface ; ordre d'accès = LRU
+
+    def _sample(self, grid, x, y, cell):
         gx, gy = x / cell, y / cell
-        x0, y0 = int(gx), int(gy)
+        x0 = min(int(gx), len(grid[0]) - 2)
+        y0 = min(int(gy), len(grid) - 2)
         fx, fy = gx - x0, gy - y0
         a = grid[y0][x0] * (1 - fx) + grid[y0][x0 + 1] * fx
         b = grid[y0 + 1][x0] * (1 - fx) + grid[y0 + 1][x0 + 1] * fx
         return a * (1 - fy) + b * fy
 
-    dark = (58, 94, 50)
-    lightg = (98, 136, 68)
-    dry = (120, 128, 68)
-    sub = tile // 2
-    for sy in range(mh * 2):
-        for sx in range(mw * 2):
-            n = 0.62 * sample(g1, sx / 2, sy / 2, 4) + 0.38 * sample(g2, sx / 2, sy / 2, 2)
-            n = clamp(n + rng.uniform(-0.05, 0.05), 0, 1)
-            col = mix(dark, lightg, n)
-            if n > 0.72:
-                col = mix(col, dry, (n - 0.72) * 2.2)
-            r = pygame.Rect(sx * sub, sy * sub, sub, sub)
-            bg.fill(col, r)
-            speckle(bg, r, rng, 3, 8)
-    # grandes variations douces pour casser la grille
-    for _ in range(46):
-        rr = rng.randint(60, 190)
-        lay = pygame.Surface((rr * 2, rr * 2), pygame.SRCALPHA)
-        col = rng.choice([(28, 58, 32, 9), (126, 156, 84, 8), (40, 80, 40, 8)])
-        for i in range(rr, 0, -6):
-            pygame.draw.circle(lay, col, (rr, rr), i)
-        bg.blit(lay, (rng.randint(-rr, world_w - rr), rng.randint(-rr, world_h - rr)))
-    # touffes d'herbe
-    for _ in range(1600):
-        x, y = rng.randint(2, world_w - 3), rng.randint(4, world_h - 3)
-        c = bg.get_at((x, y))
-        gc = shade((c[0], c[1], c[2]), rng.choice([0.75, 1.3]))
-        for k in range(3):
-            pygame.draw.line(bg, gc, (x + k * 2 - 2, y),
-                             (x + k * 2 - 2 + rng.randint(-1, 1), y - rng.randint(2, 5)))
-    # fleurs
-    for _ in range(240):
-        x, y = rng.randint(0, world_w - 1), rng.randint(0, world_h - 1)
-        pygame.draw.circle(bg, rng.choice([(220, 220, 240), (235, 210, 120),
-                                           (150, 210, 240)]), (x, y), 1)
-    # cailloux
-    for _ in range(160):
-        x, y = rng.randint(0, world_w - 4), rng.randint(0, world_h - 4)
-        pygame.draw.circle(bg, (116, 116, 120), (x, y), rng.randint(1, 2))
-        pygame.draw.circle(bg, (80, 80, 86), (x + 1, y + 1), 1)
-    return bg
+    def _noise(self, sx, sy):
+        """Valeur de bruit pour la sous-case (sx, sy) (coordonnées demi-case)."""
+        return 0.62 * self._sample(self.g1, sx / 2, sy / 2, 4) \
+            + 0.38 * self._sample(self.g2, sx / 2, sy / 2, 2)
+
+    @staticmethod
+    def _grass_col(n):
+        col = mix(_T_DARK, _T_LIGHT, n)
+        if n > 0.72:
+            col = mix(col, _T_DRY, (n - 0.72) * 2.2)
+        return col
+
+    def bake(self, surf, x, y):
+        """Cuit une surface décorative (place, chemin) dans le fond.
+        Appelé par gen_map avant le premier rendu."""
+        x, y = int(x), int(y)
+        idx = len(self.overlays)
+        self.overlays.append((surf, x, y))
+        cs = TERRAIN_CHUNK
+        for cy in range(y // cs, (y + surf.get_height()) // cs + 1):
+            for cx in range(x // cs, (x + surf.get_width()) // cs + 1):
+                self._overlay_index.setdefault((cx, cy), []).append(idx)
+                self.chunks.pop((cx, cy), None)
+
+    def _render_chunk(self, cx, cy):
+        cs = TERRAIN_CHUNK
+        ox, oy = cx * cs, cy * cs
+        # graine spatiale : chaque chunk est régénéré à l'identique
+        rng = random.Random((self.seed * 73856093) ^ (cx * 19349663)
+                            ^ (cy * 83492791))
+        ch = pygame.Surface((cs, cs))
+        sub = self.tile // 2
+        for sy in range(oy // sub, (oy + cs) // sub):
+            for sx in range(ox // sub, (ox + cs) // sub):
+                n = clamp(self._noise(sx, sy) + rng.uniform(-0.05, 0.05), 0, 1)
+                col = self._grass_col(n)
+                r = pygame.Rect(sx * sub - ox, sy * sub - oy, sub, sub)
+                ch.fill(col, r)
+                speckle(ch, r, rng, 3, 8)
+        # grandes taches douces (une couche temporaire par tache : le dessin
+        # direct de cercles alpha sur une surface opaque ne mélangerait pas)
+        lay = None
+        for bx, by, rr, col in self._blob_index.get((cx, cy), ()):
+            if lay is None:
+                lay = pygame.Surface((cs, cs), pygame.SRCALPHA)
+            else:
+                lay.fill((0, 0, 0, 0))
+            for i in range(rr, 0, -6):
+                pygame.draw.circle(lay, col, (bx + rr - ox, by + rr - oy), i)
+            ch.blit(lay, (0, 0))
+        # touffes d'herbe
+        for _ in range(_T_TUFTS):
+            x, y = rng.randint(0, cs - 1), rng.randint(4, cs - 1)
+            c = ch.get_at((x, y))
+            gc = shade((c[0], c[1], c[2]), rng.choice([0.75, 1.3]))
+            for k in range(3):
+                pygame.draw.line(ch, gc, (x + k * 2 - 2, y),
+                                 (x + k * 2 - 2 + rng.randint(-1, 1),
+                                  y - rng.randint(2, 5)))
+        # fleurs
+        for _ in range(_T_FLOWER_N):
+            pygame.draw.circle(ch, rng.choice(_T_FLOWERS),
+                               (rng.randint(0, cs - 1), rng.randint(0, cs - 1)), 1)
+        # cailloux
+        for _ in range(_T_ROCK_N):
+            x, y = rng.randint(0, cs - 4), rng.randint(0, cs - 4)
+            pygame.draw.circle(ch, (116, 116, 120), (x, y), rng.randint(1, 2))
+            pygame.draw.circle(ch, (80, 80, 86), (x + 1, y + 1), 1)
+        # places et chemins cuits par-dessus
+        for idx in self._overlay_index.get((cx, cy), ()):
+            surf, x, y = self.overlays[idx]
+            ch.blit(surf, (x - ox, y - oy))
+        return ch.convert()
+
+    def chunk(self, cx, cy):
+        key = (cx, cy)
+        ch = self.chunks.pop(key, None)
+        if ch is None:
+            ch = self._render_chunk(cx, cy)
+        self.chunks[key] = ch  # réinsertion en fin : le plus récemment utilisé
+        if len(self.chunks) > TERRAIN_MAX_CHUNKS:
+            self.chunks.pop(next(iter(self.chunks)))
+        return ch
+
+    def draw(self, view, cam):
+        cs = TERRAIN_CHUNK
+        x0, y0 = int(cam.x) // cs, int(cam.y) // cs
+        x1 = min((int(cam.x) + view.get_width() - 1) // cs,
+                 (self.world_w - 1) // cs)
+        y1 = min((int(cam.y) + view.get_height() - 1) // cs,
+                 (self.world_h - 1) // cs)
+        for cy in range(max(0, y0), y1 + 1):
+            for cx in range(max(0, x0), x1 + 1):
+                view.blit(self.chunk(cx, cy), (cx * cs - cam.x, cy * cs - cam.y))
+        # préchargement amorti : un anneau d'avance autour de la vue, deux
+        # chunks au plus par frame, pour lisser le coût pendant le défilement
+        budget = 2
+        for cy in range(max(0, y0 - 1),
+                        min((self.world_h - 1) // cs, y1 + 1) + 1):
+            for cx in range(max(0, x0 - 1),
+                            min((self.world_w - 1) // cs, x1 + 1) + 1):
+                if (cx, cy) not in self.chunks:
+                    self.chunk(cx, cy)
+                    budget -= 1
+                    if budget == 0:
+                        return
+
+    def minimap(self, w, h):
+        """Fond réduit pour la minimap : le bruit est échantillonné par pixel
+        (jamais de rendu plein monde, même temporaire)."""
+        surf = pygame.Surface((w, h))
+        mw2, mh2 = self.world_w // self.tile * 2, self.world_h // self.tile * 2
+        for py in range(h):
+            sy = (py + 0.5) / h * mh2
+            for px in range(w):
+                surf.set_at((px, py),
+                            self._grass_col(self._noise((px + 0.5) / w * mw2, sy)))
+        fx, fy = w / self.world_w, h / self.world_h
+        for lay, x, y in self.overlays:
+            ow = int(lay.get_width() * fx)
+            oh = int(lay.get_height() * fy)
+            if ow >= 2 and oh >= 2:
+                surf.blit(pygame.transform.smoothscale(lay, (ow, oh)),
+                          (int(x * fx), int(y * fy)))
+        return surf.convert()
 
 
-def bake_plaza(bg, cx, cy, r, seed=3):
+def bake_plaza(terrain, cx, cy, r, seed=3):
     rng = random.Random(seed)
     lay = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
     for i in range(r, 0, -2):
@@ -995,10 +1121,10 @@ def bake_plaza(bg, cx, cy, r, seed=3):
         c = rng.choice([(108, 100, 84), (88, 80, 68), (118, 110, 94)])
         pygame.draw.circle(lay, c + (220,), p, rng.randint(2, 4))
     pygame.draw.circle(lay, (60, 54, 46, 160), (r, r), r - 1, 2)
-    bg.blit(lay, (cx - r, cy - r))
+    terrain.bake(lay, cx - r, cy - r)
 
 
-def bake_path(bg, p0, p1, seed=5):
+def bake_path(terrain, p0, p1, seed=5):
     rng = random.Random(seed)
     x0, y0 = p0
     x1, y1 = p1
@@ -1013,7 +1139,7 @@ def bake_path(bg, p0, p1, seed=5):
         lay = pygame.Surface((r * 2, r * 2), pygame.SRCALPHA)
         pygame.draw.circle(lay, (104, 94, 70, 70), (r, r), r)
         pygame.draw.circle(lay, (94, 84, 62, 60), (r, r), int(r * 0.6))
-        bg.blit(lay, (sx - r, sy - r))
+        terrain.bake(lay, sx - r, sy - r)
 
 
 # ------------------------------------------------------------------- UI

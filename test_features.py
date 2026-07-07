@@ -4,8 +4,9 @@ Suite de tests headless de CRISTALIS.
 
 Lancer :  python test_features.py
 Aucune fenêtre n'est ouverte (le flag --autotest force SDL_VIDEODRIVER=dummy).
-Couvre : sanitize_config, mode Survie zombie (préparation, invasion,
-remplacement, défaite, scores), menu pause / Échap, déterminisme de la sim.
+Couvre : sanitize_config, terrain chunké, opérations de brouillard, mode
+Survie zombie (préparation, invasion, remplacement, défaite, scores), menu
+pause / Échap, déterminisme de la sim.
 """
 
 import os
@@ -18,6 +19,7 @@ sys.argv.append("--autotest")  # data.py pose le driver vidéo dummy
 
 import data  # noqa: E402  (premier import : mode headless)
 import pygame  # noqa: E402
+import art  # noqa: E402
 
 pygame.init()
 pygame.display.set_mode((data.SCREEN_W, data.SCREEN_H))
@@ -58,10 +60,65 @@ def test_sanitize_config():
 
 def test_map_sizes():
     for key, (_nom, w, h, cap) in data.MAP_SIZES.items():
-        px = w * data.TILE * h * data.TILE * 4
-        assert px < 100e6, f"carte {key} trop grosse ({px/1e6:.0f} Mo de fond)"
         assert 2 <= cap <= data.MAX_PLAYERS
-    print("OK tailles de cartes (mémoire bornée)")
+    # le fond est chunké (art.Terrain) : la mémoire est bornée par le cache
+    # LRU quelle que soit la taille de la carte
+    cache = art.TERRAIN_MAX_CHUNKS * art.TERRAIN_CHUNK ** 2 * 4
+    assert cache < 100e6, f"cache de chunks trop gros ({cache/1e6:.0f} Mo)"
+    print("OK tailles de cartes (fond chunké, mémoire bornée)")
+
+
+def test_terrain_chunks():
+    tile = data.TILE
+    t1 = art.Terrain(4096, 2048, tile, seed=7)
+    t2 = art.Terrain(4096, 2048, tile, seed=7)
+    ref = pygame.image.tobytes(t1.chunk(3, 2), "RGB")
+    assert ref == pygame.image.tobytes(t2.chunk(3, 2), "RGB"), \
+        "deux terrains de même graine diffèrent"
+    # après éviction LRU, un chunk régénéré doit être identique
+    for i in range(art.TERRAIN_MAX_CHUNKS + 5):
+        t1.chunk(i % 16, 4 + i // 16)
+    assert (3, 2) not in t1.chunks, "chunk non évincé du cache LRU"
+    assert len(t1.chunks) <= art.TERRAIN_MAX_CHUNKS
+    assert pygame.image.tobytes(t1.chunk(3, 2), "RGB") == ref, \
+        "chunk régénéré différent de l'original"
+    # une place cuite (bake) doit apparaître même après régénération
+    before = pygame.image.tobytes(t1.chunk(0, 0), "RGB")
+    art.bake_plaza(t1, 128, 128, 60)
+    assert pygame.image.tobytes(t1.chunk(0, 0), "RGB") != before, \
+        "l'overlay cuit n'apparaît pas dans le chunk"
+    # draw couvre toute la vue, y compris contre les bords de carte
+    view = pygame.Surface((data.VIEW_W, data.VIEW_H))
+    view.fill((255, 0, 255))
+    t1.draw(view, pygame.math.Vector2(4096 - data.VIEW_W, 2048 - data.VIEW_H))
+    for p in ((0, 0), (data.VIEW_W - 1, data.VIEW_H - 1),
+              (data.VIEW_W // 2, data.VIEW_H // 2)):
+        assert view.get_at(p)[:3] != (255, 0, 255), f"trou dans le fond en {p}"
+    assert t1.minimap(210, 130).get_size() == (210, 130)
+    print("OK terrain chunké : déterminisme, LRU, overlays, bords de carte")
+
+
+def test_fog_ops():
+    """Les fusions d'octets du brouillard (exploré |= visible, voile minimap)
+    doivent équivaloir aux anciennes boucles case par case."""
+    random.seed(9)
+    g = Game("normal")
+    old = game_mod.AUTOTEST
+    game_mod.AUTOTEST = False  # update_fog est court-circuité en autotest
+    try:
+        g.fog_explored = bytearray(len(g.fog_explored))
+        g.update_fog()
+        vis, exp = g.fog_visible, g.fog_explored
+        assert any(vis), "aucune case visible autour de la base"
+        assert set(exp) <= {0, 1} and set(vis) <= {0, 1}
+        assert all(e >= v for e, v in zip(exp, vis)), \
+            "case visible non marquée explorée"
+        g._fog_mini = None
+        g.draw_minimap(pygame.display.get_surface())
+        assert g._fog_mini[0] == g.fog_version
+    finally:
+        game_mod.AUTOTEST = old
+    print("OK brouillard : fusion exploré/visible et voile minimap")
 
 
 def test_survie_preparation():
@@ -174,6 +231,8 @@ def test_determinisme():
 if __name__ == "__main__":
     test_sanitize_config()
     test_map_sizes()
+    test_terrain_chunks()
+    test_fog_ops()
     test_survie_preparation()
     test_survie_invasion_et_remplacement()
     test_survie_defaite_et_score()

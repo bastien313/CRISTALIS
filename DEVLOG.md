@@ -3,6 +3,65 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-07 — Grandes cartes rétablies, fond de carte chunké — v0.15
+
+Sur demande de Bastien, retour aux tailles de cartes de la livraison v0.5→v0.13
+(petite 96×68, moyenne 128×88, grande 192×128, géante 512×256), qui avaient été
+ramenées aux valeurs d'origine en v0.14 à cause de leur coût mémoire. Cette
+fois la cause est corrigée au lieu de réduire les cartes.
+
+### Pourquoi c'était lent / lourd
+- `art.make_terrain` peignait **toute la carte dans une seule surface** au
+  lancement : géante 512×256 cases = 16384×8192 px ≈ **537 Mo** de RAM et
+  3,2 s de génération (mesuré ; bien pire sur un portable modeste, où ça part
+  en swap — cause probable de la lenteur constatée chez l'ami du projet).
+- Le voile de brouillard de la minimap était reconstruit case par case en
+  Python à chaque mise à jour du brouillard (toutes les 0,15 s) : **27,8 ms**
+  par reconstruction sur la géante.
+- `update_fog` fusionnait exploré/visible par une boucle Python pleine carte
+  (2,8 ms sur la géante, toutes les 0,15 s).
+
+### Corrections
+- **`art.Terrain`** remplace `make_terrain` : fond découpé en chunks de
+  256×256 px générés à la demande (graine spatiale déterministe par chunk),
+  cache LRU borné à 160 chunks ≈ **42 Mo maximum quelle que soit la carte**.
+  Préchargement amorti (un anneau d'avance, 2 chunks max par frame) pour
+  lisser le défilement. Places et chemins (`bake_plaza`/`bake_path`) cuits en
+  overlays appliqués au rendu des chunks. Rendu local uniquement (RNG dédiés),
+  aucun impact lockstep.
+- **Minimap** : le fond réduit est échantillonné directement depuis le bruit
+  (`Terrain.minimap`), plus de `smoothscale` d'une surface plein monde ; le
+  voile de brouillard est construit par opérations sur octets
+  (`int.from_bytes` + `translate` + `frombuffer`) : 27,8 ms → **1,1 ms**.
+- **`update_fog`** : fusion exploré |= visible par OU sur entiers
+  (2,8 ms → ~0 ms).
+- Chunks convertis au format écran (`convert()`), blits plus rapides.
+
+### Mesures (machine de dev, carte géante 512×256, 4 joueurs)
+- init : 3,18 s → **0,07 s** ; fond : 537 Mo → **≤ 42 Mo**.
+- draw en défilement continu : médiane 4,0 ms, p95 8,6 ms (le max ~95 ms est
+  la toute première frame : vue initiale + minimap, une fois par partie).
+- Téléportation minimap (vue entière à régénérer) : 47,8 ms, une frame.
+
+### Tests
+- `python test_features.py` : 9/9 OK (2 nouveaux : `test_terrain_chunks`
+  — déterminisme, éviction LRU, overlays, bords de carte, minimap — et
+  `test_fog_ops` — équivalence des fusions d'octets avec les anciennes
+  boucles).
+- `python cristalis.py --autotest` : OK (victoire Ordre d'Azur à t=500 s sur
+  la moyenne 128×88).
+- Smoke test rendu `CRISTALIS_SMOKE=1` : exit 0.
+
+### Notes / TODO
+- Le rendu du fond n'est plus identique au pixel près à l'ancien (les touffes
+  d'herbe et taches sont semées par chunk et non plus globalement) : même
+  style visuel, purement cosmétique et local.
+- La lenteur signalée « en lançant via VS Code » : le terminal intégré est
+  neutre, mais **lancer avec F5 (débogueur) ralentit fortement Python** —
+  lancer avec `python cristalis.py` sans débogueur.
+- TODO inchangés : horde de zombies O(n²), condition de défaite Survie
+  limitée au QG.
+
 ## 2026-07-07 — Revue et correction des livraisons v0.5→v0.13 — v0.14
 
 Revue critique des modifications apportées par un LLM tiers (mode Survie,

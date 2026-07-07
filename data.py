@@ -19,16 +19,17 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.14"
+VERSION = "0.15"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
-# Attention mémoire : le fond est une surface de (largeur×32) × (hauteur×32)
-# pixels (~4 octets/px). 160×104 cases ≈ 68 Mo, maximum raisonnable.
-MAP_SIZES = {"petite": ("Petite", 48, 34, 2),
-             "moyenne": ("Moyenne", 64, 44, 4),
-             "grande": ("Grande", 96, 64, 8),
-             "geante": ("Géante", 160, 104, 8)}
+# Le fond est généré chunk par chunk (art.Terrain, cache LRU borné) : la
+# taille de carte ne pèse plus sur la RAM. Restent proportionnels à la carte :
+# brouillard (2 octets/case), grille A*, surface de brouillard minimap.
+MAP_SIZES = {"petite": ("Petite", 96, 68, 2),
+             "moyenne": ("Moyenne", 128, 88, 4),
+             "grande": ("Grande", 192, 128, 8),
+             "geante": ("Géante", 512, 256, 8)}
 SCREEN_W, SCREEN_H = 1280, 720
 HUD_H = 170
 VIEW_W, VIEW_H = SCREEN_W, SCREEN_H - HUD_H
