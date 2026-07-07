@@ -159,7 +159,7 @@ def pick_difficulty(screen, clock, ui):
     if SMOKE:
         return "normal"
     btns = [(pygame.Rect(SCREEN_W / 2 - 160, 348 + i * 82, 320, 64), key)
-            for i, key in enumerate(["facile", "normal", "difficile"])]
+            for i, key in enumerate(["facile", "normal", "difficile", "survie"])]
     while True:
         dt = clock.tick(60) / 1000
         for e in pygame.event.get():
@@ -185,7 +185,7 @@ def map_for_players(cfg):
     n = len(cfg["players"])
     if n <= MAP_SIZES[cfg["map"]][3]:
         return cfg["map"]
-    for key in ("petite", "moyenne", "grande"):
+    for key in ("petite", "moyenne", "grande", "geante"):
         if n <= MAP_SIZES[key][3]:
             return key
     return "grande"
@@ -204,7 +204,7 @@ def game_options(screen, clock, ui, subtitle="Options de la partie", lan=False):
     bar = pygame.Rect(rx, 384, 320, 12)
     zrow = pygame.Rect(rx, 428, 320, 26)
     map_btns = [(pygame.Rect(rx + i * 110, 496, 100, 42), key)
-                for i, key in enumerate(("petite", "moyenne", "grande"))]
+                for i, key in enumerate(("petite", "moyenne", "grande", "geante"))]
     play = pygame.Rect(rx, 570, 320, 56)
     dragging = False
 
@@ -324,6 +324,97 @@ def game_options(screen, clock, ui, subtitle="Options de la partie", lan=False):
             if key == cfg["map"]:
                 pygame.draw.rect(screen, (110, 220, 255), r, 2, border_radius=5)
         ui.button(screen, play, "Jouer", "Entrée pour lancer la partie")
+        pygame.display.flip()
+
+
+def survival_options(screen, clock, ui):
+    """Écran de configuration du mode Survie zombie.
+    Renvoie une config adaptée ou None (retour)."""
+    cfg = dict(DEFAULT_CONFIG, speed=1, zombies=True, map="moyenne",
+               zombie_spawn_interval=60, zombie_invasion_delay=120,
+               players=[dict(ai=False, team=1)])
+    if SMOKE:
+        return cfg
+
+    cx = SCREEN_W / 2
+    rx = cx - 160
+    spawn_bar = pygame.Rect(rx, 414, 320, 12)
+    prep_bar = pygame.Rect(rx, 516, 320, 12)
+    map_btns = [(pygame.Rect(rx + i * 110, 320, 100, 42), key)
+                for i, key in enumerate(("petite", "moyenne", "grande", "geante"))]
+    play = pygame.Rect(rx, 586, 320, 56)
+    dragging = None
+
+    def set_spawn(mx):
+        k = clamp((mx - spawn_bar.x) / spawn_bar.w, 0, 1)
+        cfg["zombie_spawn_interval"] = int(round(5 + k * 115))
+
+    def set_prep(mx):
+        k = clamp((mx - prep_bar.x) / prep_bar.w, 0, 1)
+        cfg["zombie_invasion_delay"] = int(round(k * 600))
+
+    while True:
+        dt = clock.tick(60) / 1000
+        for e in pygame.event.get():
+            if global_key(e):
+                continue
+            if e.type == pygame.QUIT:
+                return None
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
+                return None
+            if e.type == pygame.KEYDOWN and e.key == pygame.K_RETURN:
+                return cfg
+            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+                if spawn_bar.inflate(12, 18).collidepoint(e.pos):
+                    dragging = "spawn"
+                    set_spawn(e.pos[0])
+                elif prep_bar.inflate(12, 18).collidepoint(e.pos):
+                    dragging = "prep"
+                    set_prep(e.pos[0])
+                elif play.collidepoint(e.pos):
+                    return cfg
+                else:
+                    for r, key in map_btns:
+                        if r.collidepoint(e.pos):
+                            cfg["map"] = key
+            if e.type == pygame.MOUSEBUTTONUP and e.button == 1:
+                dragging = None
+            if e.type == pygame.MOUSEMOTION and dragging == "spawn":
+                set_spawn(e.pos[0])
+            if e.type == pygame.MOUSEMOTION and dragging == "prep":
+                set_prep(e.pos[0])
+
+        def slider(bar, k):
+            """Dessine une barre coulissante remplie à k (0..1)."""
+            pygame.draw.rect(screen, (16, 18, 26), bar)
+            pygame.draw.rect(screen, (40, 120, 170),
+                             (bar.x, bar.y, int(bar.w * k), bar.h))
+            pygame.draw.rect(screen, (96, 108, 132), bar, 1)
+            hx = bar.x + int(bar.w * k)
+            pygame.draw.circle(screen, (200, 236, 255), (hx, bar.centery), 9)
+            pygame.draw.circle(screen, (30, 60, 80), (hx, bar.centery), 9, 2)
+
+        ui.frame(screen, dt, "Configuration Survie zombie", "Échap : retour    Entrée : jouer")
+        ui.line(screen, "Carte de Survie :", 294, (200, 208, 222), x=rx)
+        for r, key in map_btns:
+            ui.button(screen, r, MAP_SIZES[key][0])
+            if key == cfg["map"]:
+                pygame.draw.rect(screen, (110, 220, 255), r, 2, border_radius=5)
+
+        sp = cfg["zombie_spawn_interval"]
+        ui.line(screen, f"Temps entre deux nouveaux zombies : {sp}s", 382,
+                (226, 230, 238), x=rx)
+        slider(spawn_bar, (sp - 5) / 115)
+        ui.line(screen, "Plage : 5s à 120s", 436, (150, 158, 174), x=rx)
+
+        prep = cfg["zombie_invasion_delay"]
+        mins, secs = divmod(prep, 60)
+        ui.line(screen, f"Délai avant l'invasion : {mins} min {secs:02d}s", 484,
+                (226, 230, 238), x=rx)
+        slider(prep_bar, prep / 600)
+        ui.line(screen, "Plage : 0 min à 10 min", 538, (150, 158, 174), x=rx)
+
+        ui.button(screen, play, "Lancer la Survie", "Carte + cadence + délai d'invasion")
         pygame.display.flip()
 
 

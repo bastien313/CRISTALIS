@@ -37,3 +37,22 @@ Ensuite tu vas ajouter les fonctionalité suivante:
     Quelques zombie doivent etre dispersé sur la map suffisament éloigné du spawn des joueurs pour que les jouers puisse se dévelopepr tranquilement.
 
 
+peux tu rajouter un mode en plus de Facile, normal, difficile : Survie zombie.
+  ce mode utilisera une carte de taille moyenne. 
+  le de debut du jeu commencera au centre de la map 
+  le but etant de survivre le plus longtemps contre une invasion de zombie, 
+  un compteur de temp affiche le temps passé et enregistre les scor des sessions
+  tous les 10sec un nouveau zombie rentre sur la map, via l'un des bord. 
+  si un zombie est tuer un nouveau rentre imediatement 
+  les zombie marche aléatoirement sur la map
+  si un zombie rencontre un autre zombie, il ce regroupe et marche ensemble. pour former des hordes
+  
+
+cree un menu de configuration mode zombie pour configurer la partie à jouer come pour les mode facile normal et difficile
+on y configure la carte à jouer: petite, moyenne, grande, geante.
+On y configure le temps d'apparition de nouveau zombie dans un barre coulissante : de 5sec à 120sec
+on y configure le temps avant le debut de l'invasion : de 0 min à 10min
+
+
+lors d'une partie quand on appuie sur echappe on affche une fentre pour demande la confirmation de de quitter la partie
+on retourne à la page d'acceuille du jeux.

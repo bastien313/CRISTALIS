@@ -56,6 +56,8 @@ class RenderMixin:
     def visible_to_me(self, ent):
         """Visibilité locale d'une entité ennemie à travers le brouillard.
         Les bâtiments restent visibles une fois repérés, pas les unités."""
+        if self.winner is not None:
+            return True
         if isinstance(ent, Building):
             if ent.owner.allied(self.me):
                 return True
@@ -182,13 +184,14 @@ class RenderMixin:
         if self.show_help:
             self.draw_help(screen)
         if self.paused and self.winner is None:
-            self.text(screen, self.font_h, "PAUSE", C_TEXT, SCREEN_W // 2,
-                      VIEW_H // 2 - 40, center=True)
+            self.draw_pause_menu(screen)
         if self.winner is not None:
             self.draw_end(screen)
 
     # ------------------------------------------------------------ brouillard
     def draw_fog(self, view):
+        if self.winner is not None:
+            return
         cam = self.cam
         mw, mh = self.map_w, self.map_h
         tx0, ty0 = int(cam.x // TILE), int(cam.y // TILE)
@@ -219,16 +222,31 @@ class RenderMixin:
         screen.blit(art.icon_supply(18), (128, 6))
         self.text(screen, self.font, f"{used}/{cap}",
                   C_BAD if used >= cap else C_TEXT, 152, 4)
-        mins, secs = divmod(int(self.time), 60)
-        self.text(screen, self.font, f"{mins:02d}:{secs:02d}", C_DIM, SCREEN_W // 2, 4,
+        if self.survival_mode and not self.survival_started:
+            mins, secs = divmod(int(self.survival_prep_left), 60)
+            timer_txt = f"Préparation {mins:02d}:{secs:02d}"
+            timer_col = C_GOLD
+        else:
+            tval = self.survival_time if self.survival_mode else self.time
+            mins, secs = divmod(int(tval), 60)
+            timer_txt = f"{mins:02d}:{secs:02d}"
+            timer_col = C_DIM
+        self.text(screen, self.font, timer_txt, timer_col, SCREEN_W // 2, 4,
                   center=True)
         n = len(self.combatants)
-        if n == 2:
+        if self.survival_mode:
+            t = "Survie zombie"
+        elif n == 2:
             t = f"vs {self.enemy_name}"
         else:
             t = f"{n} factions · équipe {p0.team}"
-        t += "  (LAN)" if self.multiplayer \
-            else f"  ({DIFFICULTES[self.diff_key]['nom']})"
+        if self.survival_mode:
+            if self.survival_best > 0:
+                bmin, bsec = divmod(int(self.survival_best), 60)
+                t += f"  · record {bmin:02d}:{bsec:02d}"
+        else:
+            t += "  (LAN)" if self.multiplayer \
+                else f"  ({DIFFICULTES[self.diff_key]['nom']})"
         if self.speed > 1:
             t += f"  ·  ralenti ×{self.speed}"
         w = self.font.render(t, True, C_DIM).get_width()
@@ -453,6 +471,9 @@ class RenderMixin:
         w, h = 640, 508
         r = pygame.Rect(SCREEN_W / 2 - w / 2, VIEW_H / 2 - h / 2, w, h)
         screen.blit(art.panel_img(w, h), r.topleft)
+        objective = ("Mode Survie : tenez le plus longtemps possible."
+                     if self.survival_mode
+                     else "Détruisez les bâtiments de toutes les équipes ennemies !")
         lines = [
             ("COMMANDES", C_CRYSTAL),
             ("Clic gauche / glisser : sélectionner", C_TEXT),
@@ -478,7 +499,7 @@ class RenderMixin:
             ("Sanctuaire : améliore l'Attaque [A] et la Défense [D] (3 niveaux)", C_TEXT),
             ("Muraille [M] / Porte [E] : la porte ne s'ouvre que pour votre équipe", C_TEXT),
             ("", C_TEXT),
-            ("Détruisez les bâtiments de toutes les équipes ennemies !", C_GOLD),
+            (objective, C_GOLD),
         ]
         y = r.y + 18
         for txt, col in lines:
@@ -491,8 +512,13 @@ class RenderMixin:
         s.fill((8, 10, 16, 195))
         screen.blit(s, (0, 0))
         win = self.winner == self.me.team
-        txt = "VICTOIRE !" if win else "DÉFAITE..."
-        col = (130, 235, 150) if win else (245, 105, 92)
+        if self.survival_mode:
+            win = False
+            txt = "FIN DE SURVIE"
+            col = (245, 105, 92)
+        else:
+            txt = "VICTOIRE !" if win else "DÉFAITE..."
+            col = (130, 235, 150) if win else (245, 105, 92)
         t = self.font_h.render(txt, True, col)
         for off in (3, 2):
             g = pygame.transform.smoothscale(
@@ -500,7 +526,9 @@ class RenderMixin:
             screen.blit(g, g.get_rect(center=(SCREEN_W / 2, 225)),
                         special_flags=pygame.BLEND_ADD)
         screen.blit(t, t.get_rect(center=(SCREEN_W / 2, 225)))
-        if len(self.combatants) == 2:
+        if self.survival_mode:
+            sub = "La horde a submergé votre base."
+        elif len(self.combatants) == 2:
             sub = ("La base de " + self.enemy_name + " est en ruines."
                    if win else self.enemy_name + " a rasé votre base.")
         else:
@@ -508,16 +536,46 @@ class RenderMixin:
                    if win else "Votre équipe a été balayée.")
         self.text(screen, self.font_b, sub, C_TEXT, SCREEN_W // 2, 268, center=True)
         p0 = self.me
-        mins, secs = divmod(int(self.time), 60)
+        tval = self.survival_time if self.survival_mode else self.time
+        mins, secs = divmod(int(tval), 60)
         stats = [
             f"Durée : {mins:02d}:{secs:02d}",
             f"Cristaux récoltés : {p0.total_gathered}",
             f"Unités éliminées : {p0.units_killed}   Unités perdues : {p0.units_lost}",
         ]
+        if self.survival_mode:
+            if self.survival_best > 0:
+                bmin, bsec = divmod(int(self.survival_best), 60)
+                stats.append(f"Meilleur temps : {bmin:02d}:{bsec:02d}")
+            if self.survival_new_record:
+                stats.append("Nouveau record !")
         y = 330
         for line in stats:
             self.text(screen, self.font, line, C_DIM, SCREEN_W // 2, y, center=True)
             y += 26
         hint = ("Échap : retour au menu" if self.multiplayer
-                else "R : rejouer      Échap : quitter")
+                else "R : rejouer      Échap : retour au menu")
         self.text(screen, self.font_b, hint, C_TEXT, SCREEN_W // 2, y + 30, center=True)
+
+    def draw_pause_menu(self, screen):
+        veil = pygame.Surface((SCREEN_W, SCREEN_H), pygame.SRCALPHA)
+        veil.fill((8, 10, 16, 188))
+        screen.blit(veil, (0, 0))
+        panel, resume_r, quit_r = self.pause_menu_rects()
+        screen.blit(art.panel_img(panel.w, panel.h), panel.topleft)
+        self.text(screen, self.font_h, "PAUSE", C_TEXT,
+                  panel.centerx, panel.y + 20, center=True)
+        self.text(screen, self.font,
+                  "La simulation est en pause pour tous les joueurs.", C_DIM,
+                  panel.centerx, panel.y + 88, center=True)
+        self.text(screen, self.font_s,
+                  "P ou Échap : reprendre", C_DIM,
+                  panel.centerx, panel.y + 114, center=True)
+        resume_state = 1 if resume_r.collidepoint(self.mouse) else 0
+        quit_state = 1 if quit_r.collidepoint(self.mouse) else 0
+        screen.blit(art.button_img(resume_r.w, resume_r.h, resume_state), resume_r.topleft)
+        screen.blit(art.button_img(quit_r.w, quit_r.h, quit_state), quit_r.topleft)
+        self.text(screen, self.font_b, "REPRENDRE", C_GOOD,
+                  resume_r.centerx, resume_r.y + 10, center=True)
+        self.text(screen, self.font_b, "QUITTER", C_BAD,
+                  quit_r.centerx, quit_r.y + 10, center=True)

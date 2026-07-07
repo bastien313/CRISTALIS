@@ -1,6 +1,6 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.4* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.14* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
@@ -47,8 +47,13 @@ met la partie en pause pour les deux joueurs.
 | Ordre (déplacer, attaquer, récolter, construire) | Clic droit |
 | Attaque-déplacement | `A` puis clic |
 | Groupes de contrôle | `Ctrl+1..5` enregistrer, `1..5` rappeler |
+| Annuler un placement / désélectionner / menu pause | `Échap` |
 | Caméra | Flèches, bord de l'écran, clic sur la minimap |
 | Pause / Aide | `P` / `F1` |
+
+En partie, `Échap` (sans sélection ni placement en cours) ou `P` ouvre le menu
+pause : **REPRENDRE** pour continuer, **QUITTER** pour confirmer le retour au
+menu d'accueil. Sur l'écran de fin, `Échap` ramène aussi au menu.
 
 ## Économie
 
@@ -115,16 +120,39 @@ déjà explorées restent visibles en sombre (avec les bâtiments ennemis repér
 mais les unités ennemies n'y sont plus affichées. La minimap suit les mêmes
 règles.
 
+En fin de partie, le brouillard est désactivé pour révéler toute la carte.
+
 ## IA
 
 Trois difficultés (Facile / Normal / Difficile). L'IA gère son économie,
 étend sa base, construit des défenses, recherche des améliorations et lance
 des vagues d'attaque de plus en plus grosses.
 
-## Test automatique
+## Mode Survie zombie
+
+Un quatrième mode est disponible dans le menu de difficulté : **Survie zombie**.
+
+- Un écran **Configuration Survie zombie** permet de choisir :
+   - la carte (**petite**, **moyenne**, **grande**, **géante**),
+   - le temps entre deux nouveaux zombies (curseur **5s à 120s**),
+   - le délai avant le début de l'invasion (curseur **0 à 10 minutes**).
+- Votre base démarre **au centre de la carte**.
+- Objectif : survivre le plus longtemps possible.
+- Une phase de préparation est affichée selon la valeur choisie avant l'invasion.
+- À `00:00`, le message **« Les zombies arrivent ! »** s'affiche et le chrono de survie démarre.
+- Défaite en Survie : dès que votre **Quartier Général** est détruit.
+- Le chrono de partie est affiché comme score, et les sessions sont enregistrées
+   dans `survival_scores.json` (record affiché en jeu).
+- Aucun zombie n'est présent au démarrage de la partie.
+- À l'intervalle configuré, un nouveau zombie entre par un bord de carte.
+- Si un zombie meurt, un remplaçant revient immédiatement pour conserver la pression.
+- Les zombies se déplacent aléatoirement sur la carte.
+- Quand des zombies se rencontrent, ils se regroupent et partagent une destination,
+   formant des hordes.
+
+## Tests automatiques
 
 ```
-python cristalis.py --autotest
+python cristalis.py --autotest   # partie IA contre IA sans fenêtre
+python test_features.py          # suite de tests headless (Survie, pause, déterminisme…)
 ```
-
-Simule une partie IA contre IA sans fenêtre et affiche le vainqueur.

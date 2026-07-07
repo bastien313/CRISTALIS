@@ -3,6 +3,263 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-07 — Revue et correction des livraisons v0.5→v0.13 — v0.14
+
+Revue critique des modifications apportées par un LLM tiers (mode Survie,
+menu pause, carte géante). Fonctionnalités conservées, malfaçons corrigées,
+tests ajoutés. Les leçons sont consignées dans CLAUDE.md (« Malfaçons LLM à
+éviter »).
+
+### Bugs corrigés
+- **Écran de fin** : le hint affichait « Échap : retour au menu » mais le
+  handler avait été supprimé — Échap ne faisait plus rien. Rétabli via
+  `on_key` (`request_return_menu`).
+- **LAN, connexion perdue** : « P puis QUITTER » ne pouvait pas fonctionner,
+  la pause étant une commande lockstep et la sim gelée sans le pair. Échap
+  ramène désormais directement au menu (action locale) quand le pair est
+  déconnecté ou la partie finie ; hint corrigé.
+- **Échap conforme à la demande d'origine** : annule un placement, sinon
+  désélectionne, sinon ouvre le menu pause (confirmation de sortie avec
+  REPRENDRE/QUITTER). Échap dans le menu pause = reprendre.
+- **Carte Géante 512×256** : surface de fond de 537 Mo. Ramenée à 160×104
+  (~68 Mo). Les tailles petite/moyenne/grande, doublées silencieusement sans
+  demande ni documentation, sont revenues aux valeurs d'origine (48×34,
+  64×44, 96×64).
+- **« Zombies are coming! »** → « Les zombies arrivent ! » (jeu 100 % FR),
+  aussi dans le README.
+
+### Nettoyages
+- `pause_menu_rects()` renvoie aussi le panneau : une seule source de vérité
+  pour la géométrie du menu pause (avant : constantes dupliquées dans
+  game.py et render.py).
+- QUITTER ne mute plus `self.paused` en direct (violation de l'invariant
+  lockstep n°1, inutile puisqu'on quitte la boucle).
+- `update_survival_zombies` : liste des zombies calculée une fois,
+  `spawn_border_zombie` renvoie l'unité créée ; docstring sur la restriction
+  solo (RNG global consommé).
+- `save_survival_score` : logique « nouveau record » simplifiée
+  (`score > ancien best`).
+- Suppression du code mort (`local_pid >= len(combatants)`, early-return
+  `request_return_menu` dans `update`), du doublon de config SMOKE et des
+  deux sliders copiés-collés dans `survival_options`.
+- `survival_scores.json` gitignoré ; newline final rétabli dans render.py et
+  prompt.txt ; `main()` dédoublonné.
+
+### Tests
+- Nouveau `test_features.py` **versionné dans le repo** : sanitize_config,
+  tailles de cartes bornées en mémoire, Survie (préparation, invasion,
+  remplacement des morts, défaite, sauvegarde/record), Échap/menu
+  pause/QUITTER/écran de fin, déterminisme (`state_hash` de deux sims à seed
+  identique).
+- Exécutés et verts : `python test_features.py` (7/7),
+  `python cristalis.py --autotest` (victoire équipe 2 à t=521s),
+  smoke test rendu (`CRISTALIS_SMOKE=1`, 240 frames).
+
+### Dettes/TODO
+- Le regroupement en hordes est O(n²) par frame ; acceptable jusqu'à ~200
+  zombies, à optimiser (grille spatiale) si on augmente la pression.
+- En Survie, la défaite ne regarde que le QG ; les autres bâtiments ne
+  comptent pas (comportement documenté, à revoir si souhaité).
+
+## 2026-07-06 — Échap : désélection + annulation placement — v0.13
+
+### Changement demandé
+- La touche `Échap` doit aussi annuler un placement en cours.
+
+### Implémentation
+- `game.py`
+  - `on_key` : `Échap` exécute `self.selection.clear()` et `self.placing = None`.
+  - Aucun autre effet ajouté : pause/menu inchangés.
+
+### Version et docs
+- Version incrémentée à `0.13` (`data.py`).
+- README ajusté : `Échap` désélectionne et annule un placement.
+
+### Tests effectués
+- Vérification statique ciblée sur `game.py` via `get_errors`.
+
+## 2026-07-06 — Échap limité à la désélection — v0.12
+
+### Changement demandé
+- Conserver uniquement l'action de désélection sur la touche `Échap`.
+
+### Implémentation
+- `game.py`
+  - `on_key` : `Échap` exécute uniquement `self.selection.clear()`.
+  - Suppression des effets annexes précédents (annulation placement/attaque-move,
+    retour menu de fin de partie via `Échap`).
+
+### Version et docs
+- Version incrémentée à `0.12` (`data.py`).
+- README mis à jour (table des commandes : `Échap` = désélectionner tout).
+
+### Tests effectués
+- Vérification statique ciblée sur `game.py` via `get_errors`.
+
+## 2026-07-06 — Sortie de partie via menu pause (bouton QUITTER) — v0.11
+
+### Changement demandé
+- Suppression de la sortie de partie via `Échap` pendant une partie en cours.
+- Ajout d'un vrai menu de pause avec deux boutons : **REPRENDRE** et **QUITTER**.
+
+### Implémentation
+- `game.py`
+  - La gestion d'événements en pause passe par `handle_pause_menu_event`.
+  - Nouveau calcul des zones cliquables via `pause_menu_rects`.
+  - Clic sur **REPRENDRE** (ou touche `P`) : reprise de la partie.
+  - Clic sur **QUITTER** : retour au menu principal (`request_return_menu = True`).
+  - `Échap` ne déclenche plus de demande de sortie en partie active.
+- `render.py`
+  - Remplacement de l'ancien popup de confirmation par `draw_pause_menu`.
+  - Overlay pause avec boutons **REPRENDRE** / **QUITTER** et hover visuel.
+- `cristalis.py`
+  - Message LAN "connexion perdue" aligné avec le nouveau flux :
+    "P puis QUITTER : retour au menu".
+
+### Version et docs
+- Version incrémentée à `0.11` (`data.py`).
+- README synchronisé avec le nouveau comportement de sortie en partie.
+
+### Tests effectués
+- Vérification statique sur les fichiers modifiés via `get_errors`.
+
+## 2026-07-05 — Correctif crash popup Échap (AttributeError) — v0.10
+
+### Bug corrigé
+- Crash au lancement d'une partie dès affichage de la confirmation Échap :
+  `AttributeError: 'Game' object has no attribute 'draw_quit_confirm'`.
+- Cause : `draw_quit_confirm` était accidentellement imbriquée dans `draw_end`
+  au lieu d'être une méthode de classe `RenderMixin`.
+
+### Correctif appliqué
+- Méthode `draw_quit_confirm` remise au bon niveau d'indentation (méthode de
+  classe dans `render.py`).
+- Texte d'aide du popup normalisé en ASCII (`Entree` / `Echap`) pour éviter les
+  caractères corrompus selon l'encodage terminal.
+
+### Version et docs
+- Version incrémentée à `0.10` (`data.py`).
+- README synchronisé avec la version `0.10`.
+
+### Tests effectués
+- Vérification statique `get_errors` sur `render.py`, `cristalis.py`, `game.py` :
+  aucune erreur sur le correctif (hors avertissement numpy déjà existant).
+
+## 2026-07-05 — Confirmation de sortie sur Échap en partie — v0.9
+
+### Fenêtre de confirmation
+- En cours de partie, `Échap` n'efface plus simplement la sélection : une
+  fenêtre de confirmation s'affiche désormais.
+- La fenêtre propose :
+  - **Oui** (clic, `Entrée` ou `Y`) : quitter la partie et revenir au menu,
+  - **Non** (clic, `Échap` ou `N`) : fermer la fenêtre et reprendre la partie.
+
+### Intégration gameplay
+- Ajout d'un état modal dans `Game` (`confirm_quit`) qui fige la simulation tant
+  que la confirmation est ouverte.
+- Ajout d'un signal `request_return_menu` consommé par les boucles `run_solo` et
+  `run_multiplayer` pour revenir à l'accueil.
+- En LAN, la sortie confirmée envoie un `bye` au pair avant retour menu.
+
+### Rendu/UI
+- Ajout d'un overlay visuel de confirmation dans `RenderMixin` avec deux boutons
+  stylés et rappel des raccourcis clavier.
+- Harmonisation du texte de fin de partie solo : `Échap` indique désormais le
+  retour au menu.
+
+### Version et docs
+- Version incrémentée à `0.9` (`data.py`).
+- README mis à jour avec la règle de confirmation sur `Échap`.
+
+### Tests effectués
+- Vérification statique après patch via `get_errors` (voir entrée de session).
+
+## 2026-07-05 — Menu de configuration Survie zombie + timings paramétrables — v0.8
+
+### Menu Survie dédié
+- Ajout d'un écran `survival_options` dans `menus.py`, appelé juste après le
+  choix de difficulté quand le joueur choisit **Survie zombie**.
+- Paramètres configurables :
+  - carte : petite / moyenne / grande / géante,
+  - intervalle d'apparition d'un nouveau zombie : 5s à 120s,
+  - délai avant le début de l'invasion : 0 à 10 minutes.
+
+### Intégration simulation
+- La config de partie inclut maintenant :
+  - `zombie_spawn_interval` (par défaut 60, borné 5..120),
+  - `zombie_invasion_delay` (par défaut 120, borné 0..600).
+- En mode Survie, `Game` lit ces valeurs pour piloter :
+  - le décompte de préparation,
+  - la cadence réelle des vagues,
+  - le démarrage immédiat de l'invasion si délai = 0.
+- La carte n'est plus forcée à "moyenne" en Survie : la valeur choisie dans le
+  menu est utilisée.
+
+### Version et docs
+- Version incrémentée à `0.8` (`data.py`).
+- README mis à jour pour documenter le nouveau menu de configuration Survie.
+
+### Tests effectués
+- Vérification statique après patch via `get_errors` (voir entrée de session).
+
+## 2026-07-05 — Nouveau mode "Survie zombie" + score persistant — v0.7
+
+### Condition de défaite Survie (QG)
+- En mode Survie, le joueur perd dès qu'il ne possède plus de Quartier Général,
+  même s'il reste d'autres bâtiments.
+
+### Brouillard en fin de partie
+- Désactivation automatique du brouillard de guerre quand la partie est terminée
+  afin de voir toute la carte et toutes les entités.
+
+### Ajustement spawn Survie (QG vs cristaux)
+- Décalage du QG de départ en mode Survie (`game.py`, `gen_map`) pour éviter
+  qu'il apparaisse dans la zone de cristaux centrale au lancement.
+
+### Ajustement cadence Survie (zombies)
+- Mode Survie : aucun zombie au démarrage.
+- Cadence d'invasion fixée à +1 zombie toutes les 20 secondes (au lieu de 10).
+
+### Préparation avant invasion (nouvelle règle)
+- Ajout d'un délai de préparation de 2 minutes en mode Survie.
+- Affichage d'un décompte "Préparation mm:ss" dans la topbar.
+- À 0, message exact "Zombies are coming!", démarrage du chrono de survie et
+  début des arrivées de zombies.
+- Le score enregistré de Survie repose désormais sur le chrono de survie
+  (`survival_time`) et non sur le temps global de simulation.
+
+### Nouveau mode de difficulté
+- Ajout de `survie` dans `DIFFICULTES` (libellé **Survie zombie**), visible dans
+  le menu de sélection des difficultés.
+- En solo, ce mode force une config dédiée : carte **moyenne**, zombies activés,
+  une seule faction humaine, vitesse normale.
+
+### Règles du mode Survie
+- Spawn du joueur au centre de la carte (QG central).
+- Condition de fin spécifique : la partie s'arrête quand le joueur n'a plus de
+  bâtiment (pas de condition de victoire classique RTS).
+- Invasion continue :
+  - +1 zombie cible toutes les 20 secondes (entrée par un bord de map),
+  - remplacement immédiat des zombies morts pour maintenir la pression.
+- Déplacement zombie : errance aléatoire sur la carte en attaque-move.
+- Regroupement/hordes : quand un zombie rencontre un autre zombie proche, il
+  reprend sa destination pour se déplacer en groupe.
+
+### Score et HUD
+- Score = temps de survie (`self.time`).
+- Sauvegarde des sessions dans `survival_scores.json` (top 20), record chargé au
+  démarrage et affiché dans la topbar.
+- Écran de fin adapté ("FIN DE SURVIE", meilleur temps, indication nouveau record).
+- Aide F1 adaptée avec objectif spécifique du mode Survie.
+
+### Documentation et version
+- Version incrémentée : `data.VERSION = "0.7"`.
+- README mis à jour : section dédiée au mode Survie zombie + version 0.7.
+
+### Tests effectués
+- Vérification statique : `get_errors` sur workspace -> aucune erreur.
+- Pas de run automatisé relancé dans cette session (autotest/smoke non exécutés).
+
 ## 2026-07-02 (5e session) — Mise à jour du README (rattrapage)
 
 - Le README n'avait pas été actualisé lors de la session v0.4 : ajout des deux

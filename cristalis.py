@@ -25,7 +25,7 @@ from data import (AUTOTEST, C_BAD, C_TEXT, DEFAULT_CONFIG, FACTION_NAMES,
                   VERSION, VIEW_H)
 from game import Game
 from menus import (MenuUI, game_options, global_key, lan_host, lan_join, menu,
-                   pick_difficulty, wait_handshake)
+                   pick_difficulty, survival_options, wait_handshake)
 
 
 def run_autotest():
@@ -66,13 +66,12 @@ def run_solo(screen, clock, diff, config=None):
                 continue
             if e.type == pygame.QUIT:
                 return "quit"
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE \
-                    and game.winner is not None:
-                return "quit"
             if e.type == pygame.KEYDOWN and e.key == pygame.K_r \
                     and game.winner is not None:
                 return "menu"
             game.handle_event(e)
+        if game.request_return_menu:
+            return "menu"
         game.scroll(dt, pygame.key.get_pressed())
         game.update(dt / game.speed)
         game.draw(screen)
@@ -107,11 +106,10 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
             if e.type == pygame.QUIT:
                 peer.send(dict(t="bye"))
                 return "quit"
-            if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE \
-                    and (game.winner is not None or not peer.alive):
-                peer.send(dict(t="bye"))
-                return "menu"
             game.handle_event(e)
+        if game.request_return_menu:
+            peer.send(dict(t="bye"))
+            return "menu"
 
         for msg in peer.poll():
             mt = msg.get("t")
@@ -194,7 +192,8 @@ def main():
             diff = pick_difficulty(screen, clock, ui)
             if diff is None:
                 continue
-            cfg = game_options(screen, clock, ui)
+            cfg = (survival_options(screen, clock, ui) if diff == "survie"
+                   else game_options(screen, clock, ui))
             if cfg is None:
                 continue
             if run_solo(screen, clock, diff, cfg) == "quit":

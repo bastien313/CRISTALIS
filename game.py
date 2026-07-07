@@ -10,7 +10,9 @@ et le brouillard reste local (jamais dans state_hash).
 """
 
 import heapq
+import json
 import math
+import os
 import random
 import time
 import zlib
@@ -71,6 +73,8 @@ def sanitize_config(config):
     cfg = dict(DEFAULT_CONFIG) if config is None else dict(DEFAULT_CONFIG, **config)
     cfg["speed"] = int(clamp(cfg.get("speed", 1), 1, 300))
     cfg["zombies"] = bool(cfg.get("zombies"))
+    cfg["zombie_spawn_interval"] = int(clamp(cfg.get("zombie_spawn_interval", 60), 5, 120))
+    cfg["zombie_invasion_delay"] = int(clamp(cfg.get("zombie_invasion_delay", 120), 0, 600))
     if cfg.get("map") not in MAP_SIZES:
         cfg["map"] = "moyenne"
     slots = []
@@ -90,6 +94,11 @@ class Game(RenderMixin):
         Unit._next_id = 0
         Building._next_id = 0
         self.config = sanitize_config(config)
+        self.survival_mode = difficulty == "survie"
+        if self.survival_mode:
+            self.config["speed"] = 1
+            self.config["zombies"] = True
+            self.config["players"] = [dict(ai=False, team=1)]
         self.speed = self.config["speed"]
         self.zombies_on = self.config["zombies"]
         _nom, self.map_w, self.map_h, _cap = MAP_SIZES[self.config["map"]]
@@ -142,6 +151,7 @@ class Game(RenderMixin):
         self.drag_start = None
         self.pending_amove = False
         self.mouse = (0, 0)
+        self.request_return_menu = False
         self.alert_cd = 0.0
         if multiplayer and len(self.combatants) == 2:
             self.enemy_name = FACTION_NAMES[1 - local_pid]
@@ -172,10 +182,32 @@ class Game(RenderMixin):
         if len(self.combatants) == 2:
             self.message("Détruisez tous les bâtiments de " + self.enemy_name + " !",
                          C_TEXT, 6)
+        elif self.survival_mode:
+            self.message("Mode Survie zombie : tenez le plus longtemps possible !",
+                         C_TEXT, 6)
         else:
             self.message("Détruisez les bâtiments de toutes les équipes ennemies !",
                          C_TEXT, 6)
         self.message("F1 : aide et commandes", C_DIM, 6)
+        self.survival_prep_duration = float(self.config["zombie_invasion_delay"])
+        self.survival_prep_left = self.survival_prep_duration
+        self.survival_started = (not self.survival_mode) or self.survival_prep_duration <= 0
+        self.survival_time = 0.0
+        self.survival_spawn_interval = float(self.config["zombie_spawn_interval"])
+        self.survival_spawn_t = self.survival_spawn_interval
+        self.survival_target = 0
+        self.survival_scores = []
+        self.survival_best = 0
+        self.survival_new_record = False
+        self.survival_saved = False
+        if self.survival_mode:
+            self.load_survival_scores()
+            if self.survival_started:
+                self.message("Les zombies arrivent !", C_BAD, 6)
+            else:
+                mins, secs = divmod(int(self.survival_prep_duration), 60)
+                self.message(f"Préparation : {mins:02d}:{secs:02d} avant l'invasion zombie.",
+                             C_DIM, 6)
 
     @property
     def me(self):
@@ -190,6 +222,91 @@ class Game(RenderMixin):
     def zombie_player(self):
         return self.zombie_p
 
+    @property
+    def survival_score_path(self):
+        return os.path.join(os.path.dirname(__file__), "survival_scores.json")
+
+    def load_survival_scores(self):
+        self.survival_scores = []
+        try:
+            with open(self.survival_score_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            times = [int(v) for v in data.get("times", []) if isinstance(v, (int, float))]
+            self.survival_scores = sorted(times, reverse=True)[:20]
+        except Exception:
+            self.survival_scores = []
+        self.survival_best = self.survival_scores[0] if self.survival_scores else 0
+
+    def save_survival_score(self):
+        score = int(self.survival_time)
+        scores = list(self.survival_scores)
+        scores.append(score)
+        scores = sorted(scores, reverse=True)[:20]
+        data = {"times": scores}
+        try:
+            with open(self.survival_score_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=True, indent=2)
+        except Exception:
+            return
+        self.survival_scores = scores
+        self.survival_new_record = score > self.survival_best
+        self.survival_best = scores[0]
+
+    def random_survival_point(self):
+        return Vector2(random.uniform(48, self.world_w - 48),
+                       random.uniform(48, self.world_h - 48))
+
+    def spawn_border_zombie(self):
+        if self.zombie_p is None:
+            return None
+        edge = random.randint(0, 3)
+        margin = 16
+        if edge == 0:
+            pos = (margin, random.uniform(margin, self.world_h - margin))
+        elif edge == 1:
+            pos = (self.world_w - margin, random.uniform(margin, self.world_h - margin))
+        elif edge == 2:
+            pos = (random.uniform(margin, self.world_w - margin), margin)
+        else:
+            pos = (random.uniform(margin, self.world_w - margin), self.world_h - margin)
+        z = self.spawn_unit("zombie", self.zombie_p, pos)
+        z.order_move(self.random_survival_point(), amove=True)
+        return z
+
+    def update_survival_zombies(self, dt):
+        """Invasion du mode Survie : maintient survival_target zombies vivants
+        (un de plus à chaque intervalle, remplacement immédiat des morts) et
+        les fait errer en hordes. Solo uniquement : le RNG global est consommé,
+        ce qui serait interdit dans un code exécuté en LAN."""
+        if not self.survival_mode or self.zombie_p is None \
+                or not self.survival_started:
+            return
+        self.survival_spawn_t -= dt
+        while self.survival_spawn_t <= 0:
+            self.survival_spawn_t += self.survival_spawn_interval
+            self.survival_target += 1
+        zombies = sorted((u for u in self.units
+                          if u.owner is self.zombie_p and u.kind == "zombie"),
+                         key=lambda u: u.uid)
+        for _ in range(self.survival_target - len(zombies)):
+            z = self.spawn_border_zombie()
+            if z is not None:
+                zombies.append(z)  # uid croissant : l'ordre trié est conservé
+        for i, z in enumerate(zombies):
+            if z.state == "attack" and z.attack_target is not None and z.attack_target.hp > 0:
+                continue
+            leader = None
+            for other in zombies[:i]:
+                if z.pos.distance_to(other.pos) <= 46 and other.dest is not None:
+                    leader = other
+                    break
+            if leader is not None and leader.dest is not None:
+                if z.dest is None or z.dest.distance_to(leader.dest) > 14:
+                    z.order_move(Vector2(leader.dest), amove=True)
+                continue
+            if z.state == "idle" or z.dest is None or z.pos.distance_to(z.dest) < 18:
+                z.order_move(self.random_survival_point(), amove=True)
+
     # ------------------------------------------------------------ carte
     def gen_map(self):
         # les positions sont relatives à map_w/map_h (taille paramétrable) et
@@ -198,7 +315,11 @@ class Game(RenderMixin):
         self.bg = art.make_terrain(self.world_w, self.world_h, TILE)
         combats = self.combatants
         n = len(combats)
-        if n == 2:
+        if self.survival_mode:
+            # Décalage volontaire du QG en Survie pour éviter la superposition
+            # avec le gisement central de cristaux.
+            base_tiles = [(mw // 2 - 8, mh // 2 + 2)]
+        elif n == 2:
             base_tiles = [(5, mh - 11), (mw - 9, 6)]
         else:
             cx0, cy0 = mw / 2, mh / 2
@@ -277,9 +398,11 @@ class Game(RenderMixin):
                 if c is not None:
                     u.order_harvest(c)
 
-        # mode zombie : quelques rôdeurs dispersés, loin des bases de départ
-        # (seuil dégressif : les grandes parties laissent moins de place)
-        if self.zombies_on:
+        # mode zombie classique : quelques rôdeurs dispersés, loin des bases de
+        # départ (seuil dégressif : les grandes parties laissent moins de place).
+        # En mode Survie, aucun zombie n'est présent au démarrage : la première
+        # vague arrive via update_survival_zombies().
+        if self.zombies_on and not self.survival_mode:
             num = int(clamp(mw * mh // 400, 4, 12))
             placed = 0
             for dmin in (600, 450, 300):
@@ -829,6 +952,16 @@ class Game(RenderMixin):
         if self.paused or self.winner is not None:
             return
         self.time += dt
+        if self.survival_mode:
+            if not self.survival_started:
+                self.survival_prep_left = max(0.0, self.survival_prep_left - dt)
+                if self.survival_prep_left <= 0:
+                    self.survival_started = True
+                    self.survival_spawn_t = self.survival_spawn_interval
+                    self.message("Les zombies arrivent !", C_BAD, 6)
+            else:
+                self.survival_time += dt
+        self.update_survival_zombies(dt)
         self.alert_cd = max(0, self.alert_cd - dt)
         self.fog_timer -= dt
         if self.fog_timer <= 0:
@@ -901,6 +1034,17 @@ class Game(RenderMixin):
     def check_victory(self):
         """Une équipe gagne quand elle est la seule à avoir encore un bâtiment
         (les zombies ne comptent pas)."""
+        if self.survival_mode:
+            # Survie = solo uniquement, donc lire self.me ici est sans danger
+            # (interdit sinon : la sim ne doit pas dépendre de l'état local).
+            alive = any(b.owner is self.me and b.kind == "qg" for b in self.buildings)
+            if not alive and self.winner is None:
+                self.winner = ZOMBIE_TEAM
+                self.play("lose")
+                if not self.survival_saved:
+                    self.save_survival_score()
+                    self.survival_saved = True
+            return
         alive = set()
         for p in self.combatants:
             if any(b.owner is p for b in self.buildings):
@@ -955,6 +1099,9 @@ class Game(RenderMixin):
 
     # ------------------------------------------------------------ entrées
     def handle_event(self, e):
+        if self.paused and self.winner is None:
+            self.handle_pause_menu_event(e)
+            return
         if e.type == pygame.KEYDOWN:
             self.on_key(e)
         elif e.type == pygame.MOUSEBUTTONDOWN:
@@ -963,6 +1110,31 @@ class Game(RenderMixin):
             self.on_mouse_up(e)
         elif e.type == pygame.MOUSEMOTION:
             self.mouse = e.pos
+
+    def handle_pause_menu_event(self, e):
+        _panel, resume_r, quit_r = self.pause_menu_rects()
+        if e.type == pygame.MOUSEMOTION:
+            self.mouse = e.pos
+            return
+        if e.type == pygame.KEYDOWN:
+            if e.key in (pygame.K_p, pygame.K_ESCAPE):
+                self.issue(dict(op="pause"))
+            return
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
+            if resume_r.collidepoint(e.pos):
+                self.issue(dict(op="pause"))
+            elif quit_r.collidepoint(e.pos):
+                # sortie purement locale : on quitte la boucle de jeu, la sim
+                # n'est pas mutée (en LAN le pair reçoit un "bye")
+                self.request_return_menu = True
+
+    def pause_menu_rects(self):
+        """Panneau et boutons du menu pause (source unique, utilisée aussi
+        par le rendu)."""
+        panel = pygame.Rect(SCREEN_W // 2 - 230, SCREEN_H // 2 - 107, 460, 214)
+        resume_r = pygame.Rect(panel.x + 64, panel.bottom - 66, 146, 44)
+        quit_r = pygame.Rect(panel.right - 210, panel.bottom - 66, 146, 44)
+        return panel, resume_r, quit_r
 
     def on_key(self, e):
         k = e.key
@@ -973,10 +1145,19 @@ class Game(RenderMixin):
             self.issue(dict(op="pause"))
             return
         if k == pygame.K_ESCAPE:
-            if self.placing:
+            # fin de partie ou connexion perdue : retour direct au menu (la
+            # pause lockstep n'avancerait plus si le pair est déconnecté)
+            if self.winner is not None or (self.net is not None
+                                           and not self.net.alive):
+                self.request_return_menu = True
+            elif self.placing:
                 self.placing = None
             elif self.selection:
                 self.selection = []
+            else:
+                # rien à annuler : Échap ouvre le menu pause (confirmation
+                # de sortie via le bouton QUITTER)
+                self.issue(dict(op="pause"))
             return
         if pygame.K_1 <= k <= pygame.K_5:
             n = k - pygame.K_0

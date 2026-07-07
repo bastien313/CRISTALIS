@@ -19,13 +19,16 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.4"
+VERSION = "0.14"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
+# Attention mémoire : le fond est une surface de (largeur×32) × (hauteur×32)
+# pixels (~4 octets/px). 160×104 cases ≈ 68 Mo, maximum raisonnable.
 MAP_SIZES = {"petite": ("Petite", 48, 34, 2),
              "moyenne": ("Moyenne", 64, 44, 4),
-             "grande": ("Grande", 96, 64, 8)}
+             "grande": ("Grande", 96, 64, 8),
+             "geante": ("Géante", 160, 104, 8)}
 SCREEN_W, SCREEN_H = 1280, 720
 HUD_H = 170
 VIEW_W, VIEW_H = SCREEN_W, SCREEN_H - HUD_H
@@ -48,6 +51,7 @@ TOMB_DELAY = 20.0  # secondes entre la mort d'une unité et le zombie
 # joueur (2 à 8) : ai (bool) et team (1..8). En LAN les slots 0 et 1 sont
 # humains, en solo seul le slot 0 l'est.
 DEFAULT_CONFIG = dict(speed=1, zombies=False, map="moyenne",
+                      zombie_spawn_interval=60, zombie_invasion_delay=120,
                       players=[dict(ai=False, team=1), dict(ai=True, team=2)])
 
 C_TEXT = (226, 230, 238)
@@ -165,6 +169,9 @@ DIFFICULTES = {
     "difficile": dict(nom="Difficile", income=1.25, workers=14, wave0=11, wave_step=4,
                       prod_pause=0.0, tempo=1.0, wave_max=26,
                       desc="L'IA est agressive et efficace. Bonne chance."),
+    "survie": dict(nom="Survie zombie", income=1.0, workers=0, wave0=0, wave_step=0,
+                    prod_pause=0.0, tempo=1.0, wave_max=0,
+                    desc="Tenez le plus longtemps possible face à l'invasion."),
 }
 
 
