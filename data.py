@@ -19,7 +19,7 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.17"
+VERSION = "0.18"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)

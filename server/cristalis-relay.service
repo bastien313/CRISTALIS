@@ -1,0 +1,27 @@
+# Service systemd du relais CRISTALIS — voir server/DEPLOIEMENT.md
+# Copier dans /etc/systemd/system/cristalis-relay.service
+[Unit]
+Description=Relais multijoueur CRISTALIS (codes de partie)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cristalis
+Group=cristalis
+ExecStart=/usr/bin/python3 /opt/cristalis/relay.py 45456
+Restart=always
+RestartSec=3
+
+# Durcissement : le relais n'a besoin de rien (stdlib, aucun fichier)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

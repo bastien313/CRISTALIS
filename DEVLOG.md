@@ -3,6 +3,26 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-11 — Déploiement du relais + ménage de branche — v0.18
+
+- `server/cristalis-relay.service` (nouveau) : unité systemd durcie
+  (utilisateur dédié, ProtectSystem=strict, mémoire plafonnée, Restart) pour
+  faire tourner le relais sur un VPS.
+- `server/DEPLOIEMENT.md` (nouveau) : pas-à-pas complet — installation en
+  root (useradd, curl des deux fichiers depuis GitHub, enable --now, ufw),
+  vérification, branchement du jeu (`CRISTALIS_RELAY` ou `RELAY_ADDR`),
+  mise à jour du relais. Référencé depuis le README.
+- Suppression du dossier `rapport_reseau/` (brainstorm du 2026-07-07,
+  demande de Bastien : la voie navigateur est écartée, l'option retenue —
+  relais VPS — est implémentée depuis la v0.17 ; l'historique git garde les
+  rapports au besoin).
+- Branche `reseau` supprimée (locale et distante) : tout est fusionné dans
+  `master` depuis la v0.17.
+
+### Tests
+- `python test_features.py` : suite complète verte (aucun code de jeu
+  modifié, uniquement doc/déploiement + bump de version 0.18).
+
 ## 2026-07-11 — Multijoueur par Internet : serveur relais + codes de partie — v0.17
 
 Mise en œuvre de l'option C du rapport réseau (`rapport_reseau/01`) : jouer

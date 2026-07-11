@@ -1,6 +1,6 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.17* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.18* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
@@ -53,9 +53,10 @@ Aucun port à ouvrir sur les box : les deux joueurs se connectent **en sortant**
 vers un petit serveur relais (`server/relay.py`, stdlib uniquement) hébergé sur
 un VPS.
 
-1. Sur le VPS : `python server/relay.py` (port 45456 par défaut) — un service
-   systemd suffit, la consommation est dérisoire (seules les commandes des
-   joueurs transitent).
+1. Sur le VPS : `python server/relay.py` (port 45456 par défaut) — service
+   systemd fourni et pas-à-pas complet dans
+   [server/DEPLOIEMENT.md](server/DEPLOIEMENT.md), la consommation est
+   dérisoire (seules les commandes des joueurs transitent).
 2. Dans le jeu, pointez le relais via la variable d'environnement
    `CRISTALIS_RELAY` (`ip` ou `ip:port`) ou la constante `RELAY_ADDR` de
    `netcode.py`.
