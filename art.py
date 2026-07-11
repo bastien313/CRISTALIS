@@ -154,7 +154,8 @@ def vignette(w, h):
 
 # ---------------------------------------------------------------- unités
 UNIT_CANVAS = {"ouvrier": 40, "soldat": 46, "archer": 44, "mage": 46, "golem": 62,
-               "baliste": 56, "zombie": 44, "maelan": 44, "adryann": 52}
+               "baliste": 56, "zombie": 44, "maelan": 44, "adryann": 52,
+               "pretre": 44, "alchimiste": 44}
 _METAL = (152, 160, 172)
 _METAL_L = (204, 212, 222)
 _SKIN = (232, 196, 158)
@@ -442,9 +443,64 @@ def _paint_adryann(d, s, col):
     pygame.draw.circle(d, (86, 56, 30), (c + 5 * s, c - 3.5 * s), 1.6 * s)
 
 
+def _paint_pretre(d, s, col):
+    c = UNIT_CANVAS["pretre"] * s // 2
+    robe = mix(col["main"], (232, 226, 208), 0.55)  # robe claire de guérisseur
+    # robe évasée
+    pygame.draw.circle(d, shade(robe, 0.5), (c, c), 8 * s)
+    pygame.draw.circle(d, robe, (c - s, c - s), 7 * s)
+    pygame.draw.circle(d, lightc(robe, 0.35), (c - 3 * s, c - 3 * s), 2.8 * s)
+    # étole couleur d'équipe et liseré doré
+    pygame.draw.line(d, col["main"], (c - 3 * s, c - 6 * s), (c - 3 * s, c + 6 * s), 2 * s)
+    pygame.draw.circle(d, (212, 182, 96), (c, c), 8 * s, s)
+    # capuche claire, visage dans l'ombre
+    pygame.draw.circle(d, shade(robe, 0.75), (c + s, c), 4.8 * s)
+    pygame.draw.circle(d, shade(robe, 0.45), (c + s, c), 4.8 * s, s)
+    pygame.draw.circle(d, (40, 36, 34), (c + 3 * s, c), 2.4 * s)
+    for dy in (-1.1, 1.1):
+        pygame.draw.circle(d, (150, 245, 170), (c + 3.4 * s, c + dy * s), 0.7 * s)
+    # bâton de soin : croix verte lumineuse au sommet
+    pygame.draw.line(d, _WOOD, (c - 6 * s, c + 8 * s), (c + 11 * s, c - 6 * s), 2 * s)
+    pygame.draw.circle(d, (86, 170, 96), (c + 12 * s, c - 7 * s), 3 * s)
+    pygame.draw.line(d, (190, 255, 200), (c + 10 * s, c - 7 * s), (c + 14 * s, c - 7 * s), s)
+    pygame.draw.line(d, (190, 255, 200), (c + 12 * s, c - 9 * s), (c + 12 * s, c - 5 * s), s)
+
+
+def _paint_alchimiste(d, s, col):
+    c = UNIT_CANVAS["alchimiste"] * s // 2
+    robe = mix(col["main"], (60, 150, 150), 0.45)  # robe teintée turquoise
+    # sacoche de fioles dans le dos
+    pygame.draw.circle(d, (104, 78, 50), (c - 8 * s, c + 2 * s), 4 * s)
+    pygame.draw.circle(d, (70, 52, 34), (c - 8 * s, c + 2 * s), 4 * s, s)
+    for dy in (-1.6, 0.4):
+        pygame.draw.line(d, (110, 220, 240), (c - 9 * s, c + dy * s),
+                         (c - 9 * s, c + (dy - 1.6) * s), int(1.4 * s))
+    # robe
+    pygame.draw.circle(d, shade(robe, 0.45), (c, c), 8 * s)
+    pygame.draw.circle(d, robe, (c - s, c - s), 7 * s)
+    pygame.draw.circle(d, lightc(robe, 0.35), (c - 3 * s, c - 3 * s), 2.8 * s)
+    # ceinture d'outils
+    pygame.draw.line(d, (96, 66, 40), (c - 6 * s, c + 3 * s), (c + 5 * s, c + 3 * s), 2 * s)
+    # tête : lunettes rondes d'alchimiste
+    pygame.draw.circle(d, shade(col["dark"], 0.9), (c + 2 * s, c), 4.6 * s)
+    pygame.draw.circle(d, _SKIN, (c + 3 * s, c), 3.2 * s)
+    for dy in (-1.6, 1.6):
+        pygame.draw.circle(d, (140, 235, 255), (c + 4 * s, c + dy * s), 1.2 * s)
+        pygame.draw.circle(d, (30, 40, 50), (c + 4 * s, c + dy * s), 1.2 * s, s)
+    # fiole brandie vers l'avant, pleine d'essence de cristal
+    pygame.draw.line(d, _SKIN, (c + 4 * s, c + 5 * s), (c + 9 * s, c + 4 * s), 2 * s)
+    pygame.draw.circle(d, (60, 180, 220), (c + 11 * s, c + 3 * s), 2.6 * s)
+    pygame.draw.circle(d, (150, 240, 255), (c + 10.4 * s, c + 2.4 * s), s)
+    pygame.draw.line(d, (200, 205, 215), (c + 11 * s, c - s),
+                     (c + 11 * s, c + 0.6 * s), int(1.6 * s))
+    # éclat de cristal flottant au-dessus de la fiole
+    draw_shard(d, c + 11 * s, c - 4 * s, 2.2 * s, 3.2 * s, (110, 225, 255))
+
+
 _PAINTERS = {"ouvrier": _paint_ouvrier, "soldat": _paint_soldat, "archer": _paint_archer,
              "mage": _paint_mage, "golem": _paint_golem, "baliste": _paint_baliste,
-             "zombie": _paint_zombie, "maelan": _paint_maelan, "adryann": _paint_adryann}
+             "zombie": _paint_zombie, "maelan": _paint_maelan, "adryann": _paint_adryann,
+             "pretre": _paint_pretre, "alchimiste": _paint_alchimiste}
 
 
 def caca_sprite():

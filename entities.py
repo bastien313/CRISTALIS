@@ -320,6 +320,9 @@ class Unit:
         self.owner = owner
         self.pos = Vector2(pos)
         self.hp = self.max_hp = self.stats["hp"]
+        self.max_mana = self.stats.get("mana", 0)
+        self.mana = float(self.max_mana)
+        self.heal_target = None
         self.radius = self.stats["rayon"]
         self.state = "idle"
         self.dest = None
@@ -364,11 +367,13 @@ class Unit:
         self.crystal = None if not amove else self.crystal
         self.build_target = None
         self.build_queue = []
+        self.heal_target = None
 
     def order_attack(self, target, auto=False):
         self.state = "attack"
         self.attack_target = target
         self.auto_target = auto
+        self.heal_target = None
         if auto and self.anchor is None:
             self.anchor = Vector2(self.pos)
         if not auto:
@@ -391,6 +396,26 @@ class Unit:
         self.state = "build"
         self.build_target = building
         self.attack_target = None
+
+    def order_heal(self, target):
+        if self.kind != "pretre":
+            return
+        self.state = "heal"
+        self.heal_target = target
+        self.attack_target = None
+        self.crystal = None
+        self.build_target = None
+        self.build_queue = []
+
+    def order_recharge(self, crystal):
+        if self.kind != "alchimiste":
+            return
+        self.state = "recharge"
+        self.crystal = crystal
+        self.attack_target = None
+        self.heal_target = None
+        self.build_target = None
+        self.build_queue = []
 
     # ---------------- helpers
     def dist_to(self, ent):
@@ -472,6 +497,8 @@ class Unit:
         st = self.stats
         self.cd = max(0, self.cd - dt)
         self.flash = max(0, self.flash - dt)
+        if self.max_mana:
+            self.mana = min(self.max_mana, self.mana + st["mana_regen"] * dt)
         self.acquire_t -= dt
         self.repath_cd = max(0, self.repath_cd - dt)
         # blocage : on voulait avancer la frame passée mais la position n'a
@@ -496,6 +523,16 @@ class Unit:
                     self.order_attack(tgt, auto=True)
             elif self.kind == "ouvrier" and self.carry >= 10:
                 self.state = "return"
+            elif self.kind == "pretre" and self.acquire_t <= 0:
+                self.acquire_t = 0.5
+                tgt = game.wounded_ally_near(self.pos, 190, self)
+                if tgt is not None:
+                    self.order_heal(tgt)
+            elif self.kind == "alchimiste" and self.acquire_t <= 0:
+                self.acquire_t = 0.5
+                c = game.nearest_recharge_crystal(self.pos, max_dist=200)
+                if c is not None:
+                    self.order_recharge(c)
 
         elif self.state == "move":
             if self.amove and st["aggro"] > 0 and self.acquire_t <= 0:
@@ -539,6 +576,46 @@ class Unit:
                     self.anchor = None
                     self.attack_target = None
                     self.order_move(a)
+
+        elif self.state == "heal":
+            t = self.heal_target
+            if t is None or t.hp <= 0 or t.hp >= t.max_hp:
+                self.heal_target = None
+                self.state = "idle"
+                return
+            if self.dist_to(t) <= st["portee"]:
+                v = t.pos - self.pos
+                if v.length_squared() > 0:
+                    self.facing = v.normalize()
+                if self.cd <= 0 and self.mana >= st["cout_mana"]:
+                    self.cd = st["cooldown"]
+                    self.mana -= st["cout_mana"]
+                    t.hp = min(t.max_hp, t.hp + st["soin"])
+                    game.heal_fx(self, t)
+            else:
+                self.step_toward(t.pos, dt, stop=st["portee"] - 6, game=game)
+
+        elif self.state == "recharge":
+            c = self.crystal
+            if c is None or c.amount <= 0 or c.amount >= c.max_amount:
+                # cristal épuisé (irrécupérable) ou plein : suivant à proximité
+                self.crystal = game.nearest_recharge_crystal(self.pos, max_dist=320)
+                if self.crystal is None:
+                    self.state = "idle"
+                return
+            if self.pos.distance_to(c.pos) <= c.radius + self.radius + st["portee"]:
+                v = c.pos - self.pos
+                if v.length_squared() > 0:
+                    self.facing = v.normalize()
+                if self.cd <= 0 and self.mana >= st["cout_mana"]:
+                    self.cd = st["cooldown"]
+                    self.mana -= st["cout_mana"]
+                    c.amount = min(c.max_amount, c.amount + st["recharge"])
+                    game.recharge_fx(self, c)
+            else:
+                self.step_toward(c.pos, dt,
+                                 stop=c.radius + self.radius + st["portee"] - 4,
+                                 game=game)
 
         elif self.state == "harvest":
             c = self.crystal
@@ -640,11 +717,29 @@ class Unit:
             pulse = 0.5 + 0.5 * math.sin(game.time * 4 + self.uid)
             g = art.glow((int(20 + 40 * pulse), int(40 + 50 * pulse), 70), 9)
             view.blit(g, g.get_rect(center=(x, y - 3)), special_flags=pygame.BLEND_ADD)
+        elif self.kind == "pretre":
+            tip = self.pos + self.facing * 11
+            pulse = 0.5 + 0.5 * math.sin(game.time * 3 + self.uid)
+            g = art.glow((int(24 + 26 * pulse), int(70 + 40 * pulse), 34), 8)
+            view.blit(g, g.get_rect(center=(tip.x - cam.x, tip.y - cam.y - 6)),
+                      special_flags=pygame.BLEND_ADD)
+        elif self.kind == "alchimiste":
+            tip = self.pos + self.facing * 10
+            pulse = 0.5 + 0.5 * math.sin(game.time * 3.4 + self.uid)
+            g = art.glow((20, int(60 + 40 * pulse), int(80 + 30 * pulse)), 8)
+            view.blit(g, g.get_rect(center=(tip.x - cam.x, tip.y - cam.y - 5)),
+                      special_flags=pygame.BLEND_ADD)
         if self.carry:
             ic = art.icon_crystal(12)
             view.blit(ic, (x + 4, y - r - 12))
         if self.hp < self.max_hp or self in game.selection:
             game.draw_hp_bar(view, x - r, y - r - 12, r * 2, self.hp / self.max_hp)
+        if self.max_mana and (self in game.selection
+                              or self.mana < self.max_mana - 0.5):
+            pygame.draw.rect(view, (12, 14, 24), (x - r, y - r - 6, r * 2, 3))
+            mw = int(r * 2 * self.mana / self.max_mana)
+            if mw > 0:
+                pygame.draw.rect(view, (96, 156, 250), (x - r, y - r - 6, mw, 3))
 
 
 class Projectile:

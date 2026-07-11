@@ -7,7 +7,8 @@ Aucune fenêtre n'est ouverte (le flag --autotest force SDL_VIDEODRIVER=dummy).
 Couvre : sanitize_config, terrain chunké, opérations de brouillard, mode
 Survie zombie (préparation, invasion, remplacement, défaite, scores), menu
 pause / Échap, déterminisme de la sim, relais Internet (codes de partie,
-appariement, handshake hello/ready/go, NET_DELAY adaptatif).
+appariement, handshake hello/ready/go, NET_DELAY adaptatif), prêtre et
+alchimiste (soin automatique et recharge de cristaux à base de mana).
 """
 
 import asyncio
@@ -291,6 +292,52 @@ def test_relais_internet():
     print("OK relais Internet : code, appariement, handshake, tuyau transparent")
 
 
+def test_pretre_et_alchimiste():
+    """v0.19 : le prêtre soigne automatiquement (mana), l'alchimiste recharge
+    les cristaux non épuisés (mana), le tout de façon déterministe."""
+    hashes = []
+    for _ in range(2):
+        random.seed(11)
+        g = Game("normal")
+        p = g.me
+        # prêtre : soigne l'allié blessé le plus proche, en consommant du mana
+        pretre = g.spawn_unit("pretre", p, (400, 400))
+        blesse = g.spawn_unit("soldat", p, (430, 400))
+        blesse.hp = 20
+        run(g, 6)
+        assert blesse.hp > 20, "le prêtre n'a pas soigné"
+        assert pretre.mana < pretre.max_mana, "le soin n'a pas consommé de mana"
+        assert blesse.hp <= blesse.max_hp
+        # alchimiste : recharge un cristal entamé, jamais au-delà du maximum
+        c = g.crystals[0]
+        c.amount = int(c.max_amount * 0.3)
+        before = c.amount
+        alch = g.spawn_unit("alchimiste", p, (c.pos.x + 40, c.pos.y))
+        alch.order_recharge(c)
+        run(g, 8)
+        assert c.amount > before, "l'alchimiste n'a pas rechargé le cristal"
+        assert c.amount <= c.max_amount
+        assert alch.mana < alch.max_mana, "la recharge n'a pas consommé de mana"
+        # un cristal épuisé (0) est irrécupérable
+        dead = next((x for x in g.crystals if x is not c), None)
+        assert dead is not None
+        dead.amount = 0
+        alch2 = g.spawn_unit("alchimiste", p, (dead.pos.x + 30, dead.pos.y))
+        alch2.order_recharge(dead)
+        g.update(DT)
+        assert dead.amount == 0, "un cristal épuisé a été rechargé"
+        assert alch2.crystal is not dead, "l'alchimiste s'obstine sur un cristal mort"
+        # la mana régénère petit à petit quand l'unité est inoccupée
+        # (prêtre isolé au centre de la carte : personne à soigner)
+        seul = g.spawn_unit("pretre", p, (g.world_w / 2, g.world_h / 2))
+        seul.mana = 0.0
+        run(g, 3)
+        assert 0 < seul.mana < seul.max_mana, "la mana ne régénère pas"
+        hashes.append(g.state_hash())
+    assert hashes[0] == hashes[1], "prêtre/alchimiste non déterministes"
+    print("OK prêtre (soin auto + mana) et alchimiste (recharge de cristaux)")
+
+
 def test_determinisme():
     """Deux sims identiques (même seed) doivent rester synchrones : garde-fou
     lockstep, vérifie que les nouveautés ne consomment pas le RNG en partie
@@ -316,5 +363,6 @@ if __name__ == "__main__":
     test_echap_et_menu_pause()
     test_net_delay_et_parse_addr()
     test_relais_internet()
+    test_pretre_et_alchimiste()
     test_determinisme()
     print("\nTous les tests sont passés.")

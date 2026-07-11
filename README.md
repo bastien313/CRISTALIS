@@ -1,6 +1,6 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.18* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.19* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
@@ -105,6 +105,8 @@ menu d'accueil. Sur l'écran de fin, `Échap` ramène aussi au menu.
 | Baliste `B` | Forge | 230 | 95 | 28 (**×3 vs bâtiments**) | 235 | 44 | 3,2 s | 3 | Engin de siège, surclasse les tours |
 | **Maelan** `N` | Caserne | 450 | 200 | 20 | 20 | 100 | 0,6 s | 3 | Ninja d'élite : rapide comme le vent, frappe sans répit |
 | **Adryann** `Y` | Caserne | 420 | 200 | 20 | 20 | 60 | 1,0 s | 3 | Bouboule vorace : dévore ses victimes (+10 % PV max) |
+| Prêtre `R` | Archerie | 175 | 55 | — | 110 (soin) | 62 | 1,2 s | 2 | Soigne automatiquement les alliés blessés (mana) |
+| Alchimiste `L` | QG | 350 | 60 | — | — | 66 | 1,0 s | 2 | Recharge les cristaux non épuisés (mana) |
 
 La baliste tire de plus loin que la Tour de cristal (235 contre 190) : c'est
 l'arme idéale pour percer une base fortifiée, mais elle est fragile — escortez-la.
@@ -114,14 +116,25 @@ foudroyant qui enchaîne près de deux coups par seconde ; *Adryann*, la bouboul
 vorace, engloutit chaque victime — il ne laisse ni cadavre ni tombe, gagne
 +10 % de PV max à chaque repas… et sème parfois un petit cadeau en chemin.
 
+**Unités à mana** (elles ne combattent pas) : leur réserve de mana se recharge
+petit à petit et chaque incantation en consomme — barre bleue sous les PV.
+
+- Le **Prêtre** soigne automatiquement l'allié blessé le plus mal en point à
+  proximité (8 PV toutes les 1,2 s), ou l'allié désigné par clic droit. Son
+  mana se régénère lentement : le soin est efficace mais jamais expéditif.
+- L'**Alchimiste** régénère les gisements de cristaux : clic droit sur un
+  cristal **encore existant** (un gisement tombé à zéro est irrécupérable) et
+  il le recharge par petites doses, puis passe de lui-même au gisement entamé
+  suivant. Cher à former, mais vite rentabilisé sur une base minière.
+
 ## Bâtiments
 
 | Bâtiment | Touche | Coût | PV | Taille | Chantier | Rôle |
 |---|---|---|---|---|---|---|
-| Quartier Général | `G` | 400 | 950 | 4×3 | 45 s | Dépôt de cristaux, produit les ouvriers, +10 ravit. |
+| Quartier Général | `G` | 400 | 950 | 4×3 | 45 s | Dépôt de cristaux, produit ouvriers et alchimistes, +10 ravit. |
 | Obélisque | `O` | 100 | 260 | 1×2 | 13 s | +8 de ravitaillement |
 | Caserne | `C` | 150 | 550 | 3×2 | 20 s | Forme les soldats |
-| Archerie | `R` | 180 | 480 | 3×2 | 24 s | Forme archers et mages |
+| Archerie | `R` | 180 | 480 | 3×2 | 24 s | Forme archers, mages et prêtres |
 | Forge à golems | `F` | 260 | 650 | 3×3 | 30 s | Assemble golems et balistes |
 | Tour de cristal | `T` | 130 | 380 | 2×2 | 17 s | Défense auto : ATQ 13, portée 190, cadence 0,95 s |
 | Sanctuaire | `S` | 200 | 500 | 2×2 | 22 s | Recherche les améliorations ATQ / DEF |

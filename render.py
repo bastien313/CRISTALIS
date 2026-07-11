@@ -362,7 +362,11 @@ class RenderMixin:
             else:
                 st = UNIT_TYPES[s.kind]
                 self.text(screen, self.font_b, st["nom"], C_TEXT, tx, y0 - 2)
-                self.text(screen, self.font, f"PV {int(s.hp)}/{s.max_hp}", C_DIM, tx, y0 + 24)
+                w = self.text(screen, self.font, f"PV {int(s.hp)}/{s.max_hp}",
+                              C_DIM, tx, y0 + 24)
+                if s.max_mana:
+                    self.text(screen, self.font, f"Mana {int(s.mana)}/{s.max_mana}",
+                              (120, 170, 250), tx + w + 18, y0 + 24)
                 self.text(screen, self.font_s,
                           f"Dégâts {st['degats']}   Portée {st['portee']}   Vitesse {st['vitesse']}",
                           C_DIM, tx, y0 + 46)

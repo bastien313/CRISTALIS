@@ -3,6 +3,50 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-11 — Deux unités à mana : Prêtre et Alchimiste — v0.19
+
+Demande de Bastien : un mage soigneur (soin automatique, pas trop rapide, mana
+qui se recharge petit à petit) et une unité qui recharge les gisements de
+cristaux (même principe de mana, un peu plus rapide, chère mais vite rentable).
+
+### Nouveautés
+- `data.py` : `pretre` (Prêtre, 175 cristaux, Archerie, touche `R`) et
+  `alchimiste` (Alchimiste, 350 cristaux, QG, touche `L`). Nouvelles clés de
+  stats : `mana`, `mana_regen`, `cout_mana`, plus `soin` (8 PV / 1,2 s) ou
+  `recharge` (12 cristaux / s). Les deux ne combattent pas (degats 0, aggro 0).
+  Soutenu, le soin est limité par la régénération (2 mana/s → ~2,7 PV/s) ; la
+  recharge par 3,5 mana/s → ~5,2 cristaux/s, soit l'alchimiste remboursé en
+  ~70 s de travail continu.
+- `entities.py` : mana régénérée dans `Unit.update`, nouveaux ordres
+  `order_heal` / `order_recharge` et états `heal` / `recharge`. En idle, le
+  prêtre acquiert automatiquement l'allié blessé le plus mal en point (rayon
+  190), l'alchimiste le gisement entamé le plus proche (rayon 200) ; une fois
+  un cristal plein, il enchaîne sur le suivant (rayon 320). Un cristal à zéro
+  est irrécupérable (« le cristal doit exister »). Barre de mana bleue sous la
+  barre de PV, lueurs au bout du bâton/de la fiole.
+- `game.py` : helpers déterministes `wounded_ally_near` (tri ratio PV puis
+  uid) et `nearest_recharge_crystal` (ordre stable de `self.crystals`) ;
+  effets `heal_fx` / `recharge_fx`. Clic droit : cristal → recharge pour un
+  alchimiste ; allié blessé → soin pour un prêtre ; les unités sans dégâts ne
+  reçoivent plus d'ordre d'attaque (elles se déplacent). `state_hash` inclut
+  désormais la mana (elle pilote la sim). Point de ralliement du QG : un
+  alchimiste produit part recharger le gisement entamé le plus proche.
+- `art.py` : sprites procéduraux `_paint_pretre` (robe claire, étole d'équipe,
+  bâton à croix verte) et `_paint_alchimiste` (robe turquoise, lunettes,
+  fiole d'essence de cristal, sacoche de fioles).
+- `render.py` : ligne « Mana x/y » dans le panneau de sélection.
+- L'IA ne produit pas encore ces unités (listes d'armée inchangées) — piste
+  pour une prochaine version.
+
+### Tests
+- `python test_features.py` : nouveau `test_pretre_et_alchimiste` (soin auto
+  + consommation de mana + plafond PV, recharge + plafond du gisement,
+  cristal à zéro irrécupérable, régénération de mana, double exécution avec
+  `state_hash` identiques) ; suite complète verte.
+- `python cristalis.py --autotest` : 45 min simulées sans erreur.
+- Smoke rendu : frame complète dessinée avec prêtre + alchimiste sélectionnés
+  (barres de mana, panneau HUD, 9 palettes de sprites et icônes générées).
+
 ## 2026-07-11 — Déploiement du relais + ménage de branche — v0.18
 
 - `server/cristalis-relay.service` (nouveau) : unité systemd durcie

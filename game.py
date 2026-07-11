@@ -451,6 +451,16 @@ class Game(RenderMixin):
     def ring(self, pos, radius, color):
         self.rings.append([Vector2(pos), 6, radius, color])
 
+    def heal_fx(self, healer, target):
+        self.spark(target.pos, (140, 240, 150), 3)
+        self.add_particle("glow", target.pos, (0, -10), 0.35,
+                          color=(110, 220, 120), size=14)
+
+    def recharge_fx(self, alch, crystal):
+        self.spark(crystal.pos, C_CRYSTAL, 3)
+        self.add_particle("glow", crystal.pos, (0, -8), 0.3,
+                          color=(80, 190, 230), size=16)
+
     def drop_caca(self, pos):
         """Petit caca d'Adryann : décor cosmétique, s'estompe comme un cadavre."""
         self.corpses.append([art.caca_sprite(), Vector2(pos), 10.0, 10.0])
@@ -463,6 +473,12 @@ class Game(RenderMixin):
                 c = self.nearest_crystal(Vector2(rally))
                 if c is not None and Vector2(rally).distance_to(c.pos) < 200:
                     u.order_harvest(c)
+                else:
+                    u.order_move(rally)
+            elif kind == "alchimiste":
+                c = self.nearest_recharge_crystal(Vector2(rally), max_dist=200)
+                if c is not None:
+                    u.order_recharge(c)
                 else:
                     u.order_move(rally)
             else:
@@ -637,6 +653,8 @@ class Game(RenderMixin):
             for u in units:
                 if u.kind == "ouvrier":
                     u.order_harvest(ent)
+                elif u.kind == "alchimiste":
+                    u.order_recharge(ent)
                 else:
                     u.order_move(world)
             if local:
@@ -644,10 +662,23 @@ class Game(RenderMixin):
             return
         if isinstance(ent, (Unit, Building)) and not ent.owner.allied(p):
             for u in units:
-                u.order_attack(ent)
+                if u.stats["degats"] > 0:
+                    u.order_attack(ent)
+                else:
+                    u.order_move(world)
             if local:
                 self.ring(world, 18, (255, 110, 90))
             return
+        if isinstance(ent, Unit) and ent.owner.allied(p) and ent.hp < ent.max_hp:
+            healers = [u for u in units if u.kind == "pretre" and u is not ent]
+            for u in healers:
+                u.order_heal(ent)
+            if healers:
+                if local:
+                    self.ring(world, 16, (140, 240, 150))
+                units = [u for u in units if u not in healers]
+                if not units:
+                    return
         if isinstance(ent, Building) and ent.owner is p and not ent.done:
             for u in units:
                 if u.kind == "ouvrier":
@@ -691,7 +722,8 @@ class Game(RenderMixin):
         """Empreinte de l'état de simulation, pour détecter une désynchro."""
         parts = []
         for u in sorted(self.units, key=lambda u: u.uid):
-            parts.append(f"u{u.uid}:{u.pos.x:.3f},{u.pos.y:.3f},{u.hp:.2f},{u.carry}")
+            parts.append(f"u{u.uid}:{u.pos.x:.3f},{u.pos.y:.3f},{u.hp:.2f},"
+                         f"{u.carry},{u.mana:.2f}")
         for b in sorted(self.buildings, key=lambda b: b.uid):
             parts.append(f"b{b.uid}:{b.hp:.2f},{b.progress:.2f},{len(b.queue)}")
         for p in self.players:
@@ -869,6 +901,27 @@ class Game(RenderMixin):
             if d < bd:
                 best, bd = c, d
         return best
+
+    def nearest_recharge_crystal(self, pos, max_dist=320):
+        """Cristal entamé mais pas épuisé le plus proche (un cristal à zéro
+        est irrécupérable). Déterministe : ordre de la liste stable."""
+        best, bd = None, max_dist * max_dist
+        for c in self.crystals:
+            if 0 < c.amount < c.max_amount:
+                d = pos.distance_squared_to(c.pos)
+                if d < bd:
+                    best, bd = c, d
+        return best
+
+    def wounded_ally_near(self, pos, radius, healer):
+        """Allié blessé le plus mal en point à portée du prêtre.
+        Déterministe : tie-break par uid."""
+        cands = [u for u in self.units
+                 if u is not healer and u.owner.allied(healer.owner)
+                 and 0 < u.hp < u.max_hp and pos.distance_to(u.pos) <= radius]
+        if not cands:
+            return None
+        return min(cands, key=lambda u: (u.hp / u.max_hp, u.uid))
 
     def richest_far_crystal(self, player):
         my_qgs = [b for b in self.buildings if b.owner is player and b.kind == "qg"]

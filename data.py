@@ -19,7 +19,7 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.18"
+VERSION = "0.19"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
@@ -95,6 +95,16 @@ UNIT_TYPES = {
     "baliste": dict(nom="Baliste", cout=230, hp=95, degats=28, portee=235, vitesse=44,
                     cooldown=3.2, supply=3, rayon=12, tps=18.0, aggro=190, splash=0,
                     desc="Engin de siège : dégâts triplés contre les bâtiments."),
+    # unités à mana (mana/mana_regen ; soin ou recharge par incantation de
+    # cout_mana toutes les `cooldown` s) : ne combattent pas (degats 0, aggro 0)
+    "pretre": dict(nom="Prêtre", cout=175, hp=55, degats=0, portee=110, vitesse=62,
+                   cooldown=1.2, supply=2, rayon=9, tps=13.0, aggro=0, splash=0,
+                   mana=60, mana_regen=2.0, soin=8, cout_mana=6,
+                   desc="Soigne automatiquement les alliés blessés (consomme du mana)."),
+    "alchimiste": dict(nom="Alchimiste", cout=350, hp=60, degats=0, portee=26, vitesse=66,
+                       cooldown=1.0, supply=2, rayon=9, tps=16.0, aggro=0, splash=0,
+                       mana=80, mana_regen=3.5, recharge=12, cout_mana=8,
+                       desc="Régénère les cristaux non épuisés (consomme du mana)."),
     "zombie": dict(nom="Zombie", cout=0, hp=90, degats=9, portee=16, vitesse=40,
                    cooldown=1.1, supply=0, rayon=9, tps=8.0, aggro=260, splash=0,
                    desc="Mort-vivant : attaque tout ce qui vit à proximité."),
@@ -111,8 +121,9 @@ UNIT_TYPES = {
 # ---------------------------------------------------------------- bâtiments
 BUILDING_TYPES = {
     "qg": dict(nom="Quartier Général", cout=400, hp=950, taille=(4, 3), supply=10,
-               prod=["ouvrier"], build_time=45, depot=True, degats=0, portee=0, cooldown=0,
-               desc="Cœur de la base : produit les ouvriers, reçoit les cristaux."),
+               prod=["ouvrier", "alchimiste"], build_time=45, depot=True, degats=0,
+               portee=0, cooldown=0,
+               desc="Cœur de la base : produit ouvriers et alchimistes, reçoit les cristaux."),
     "obelisque": dict(nom="Obélisque", cout=100, hp=260, taille=(1, 2), supply=8,
                       prod=[], build_time=13, depot=False, degats=0, portee=0, cooldown=0,
                       desc="Canalise l'énergie : +8 de ravitaillement."),
@@ -121,8 +132,9 @@ BUILDING_TYPES = {
                     degats=0, portee=0, cooldown=0,
                     desc="Forme les soldats de mêlée et les champions Maelan et Adryann."),
     "archerie": dict(nom="Archerie", cout=180, hp=480, taille=(3, 2), supply=0,
-                     prod=["archer", "mage"], build_time=24, depot=False, degats=0, portee=0,
-                     cooldown=0, desc="Forme archers et mages cristallins."),
+                     prod=["archer", "mage", "pretre"], build_time=24, depot=False,
+                     degats=0, portee=0, cooldown=0,
+                     desc="Forme archers, mages cristallins et prêtres."),
     "forge": dict(nom="Forge à golems", cout=260, hp=650, taille=(3, 3), supply=0,
                   prod=["golem", "baliste"], build_time=30, depot=False, degats=0, portee=0,
                   cooldown=0, desc="Assemble les golems de quartz et les balistes."),
@@ -164,6 +176,7 @@ BUILD_HOTKEYS = {"qg": pygame.K_g, "obelisque": pygame.K_o, "caserne": pygame.K_
 PROD_HOTKEYS = {"ouvrier": pygame.K_o, "soldat": pygame.K_s, "archer": pygame.K_a,
                 "mage": pygame.K_m, "golem": pygame.K_g, "baliste": pygame.K_b,
                 "maelan": pygame.K_n, "adryann": pygame.K_y,
+                "pretre": pygame.K_r, "alchimiste": pygame.K_l,
                 "up_atq": pygame.K_a, "up_def": pygame.K_d}
 
 # tempo : divise l'horloge du plan de construction de l'IA (plus grand = plus lent)
