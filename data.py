@@ -19,7 +19,7 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.15"
+VERSION = "0.16"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
@@ -161,14 +161,14 @@ PROD_HOTKEYS = {"ouvrier": pygame.K_o, "soldat": pygame.K_s, "archer": pygame.K_
 # tempo : divise l'horloge du plan de construction de l'IA (plus grand = plus lent)
 # wave_max : taille maximale des vagues d'attaque de l'IA
 DIFFICULTES = {
-    "facile": dict(nom="Facile", income=0.55, workers=6, wave0=5, wave_step=1,
-                   prod_pause=9.0, tempo=1.6, wave_max=12,
+    "facile": dict(nom="Facile", income=0.55, workers=6, wave0=4, wave_step=1,
+                   prod_pause=10.0, tempo=1.9, wave_max=10,
                    desc="L'IA prend vraiment son temps. Idéal pour apprendre."),
-    "normal": dict(nom="Normal", income=1.0, workers=11, wave0=9, wave_step=3,
-                   prod_pause=2.0, tempo=1.0, wave_max=24,
+    "normal": dict(nom="Normal", income=1.0, workers=12, wave0=8, wave_step=2,
+                   prod_pause=2.5, tempo=1.0, wave_max=22,
                    desc="Un adversaire équilibré."),
-    "difficile": dict(nom="Difficile", income=1.25, workers=14, wave0=11, wave_step=4,
-                      prod_pause=0.0, tempo=1.0, wave_max=26,
+    "difficile": dict(nom="Difficile", income=1.35, workers=18, wave0=10, wave_step=3,
+                      prod_pause=0.0, tempo=0.85, wave_max=30,
                       desc="L'IA est agressive et efficace. Bonne chance."),
     "survie": dict(nom="Survie zombie", income=1.0, workers=0, wave0=0, wave_step=0,
                     prod_pause=0.0, tempo=1.0, wave_max=0,

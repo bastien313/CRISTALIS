@@ -166,7 +166,8 @@ class Game(RenderMixin):
         self.mini_bg = None
         # les IA tournent aussi en LAN : elles sont déterministes (RNG global
         # + état sim), donc identiques sur les deux machines
-        self.ais = [AIController(self, p, diff) for p in self.combatants if p.is_ai]
+        self.ais = [AIController(self, p, diff, self.diff_key)
+                for p in self.combatants if p.is_ai]
         start = self.start_pos[self.local_pid]
         self.cam = Vector2(clamp(start.x - VIEW_W / 2, 0, self.world_w - VIEW_W),
                            clamp(start.y - VIEW_H / 2, 0, self.world_h - VIEW_H))

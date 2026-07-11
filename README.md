@@ -1,6 +1,6 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.15* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.16* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
@@ -128,9 +128,20 @@ En fin de partie, le brouillard est désactivé pour révéler toute la carte.
 
 ## IA
 
-Trois difficultés (Facile / Normal / Difficile). L'IA gère son économie,
-étend sa base, construit des défenses, recherche des améliorations et lance
-des vagues d'attaque de plus en plus grosses.
+Trois difficultés (Facile / Normal / Difficile), chacune avec un style propre.
+
+- **Facile** : économie modeste et lente, tech volontairement limitée
+   (obélisque, caserne, archerie), armée légère (soldats/archers), petites
+   vagues espacées, petite garnison locale qui revient défendre la base.
+- **Normal** : économie robuste (plus d'ouvriers), tech complète, obélisques
+   optimisés pour soutenir la population, armée mixte avec troupes de base et
+   élites, ciblage prioritaire des unités dangereuses, repli stratégique quand
+   la force engagée tombe sous la moitié, garnison défensive (archers + tours).
+- **Difficile** : économie agressive avec expansion par QG périphériques près
+   des gisements, tech complète + améliorations, production soutenue en
+   escouades, ciblage tactique des menaces majeures, repli/réengagement par
+   vagues, fortifications denses (nombreuses tours, murailles) et garnison de
+   mages ; renforts rapides en cas d'attaque sur la base.
 
 ## Mode Survie zombie
 
