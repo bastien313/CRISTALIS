@@ -3,6 +3,43 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-09 — Refonte IA par difficulté (éco/build/defense/attaque) — v0.16
+
+Refonte du contrôleur `AIController` pour coller aux rôles demandés par mode.
+Le comportement n'est plus seulement un changement de chiffres : chaque
+difficulté possède maintenant une doctrine propre sur l'économie, la
+construction, la composition d'armée, la défense et les offensives.
+
+### Changements de gameplay IA
+- `game.py` : passage de la clé de difficulté (`self.diff_key`) au
+  contrôleur IA pour activer des branches de logique spécifiques.
+- `data.py` : ajustement des paramètres `DIFFICULTES` (income, workers,
+  wave, tempo, pauses de production) et incrément de version `0.15 -> 0.16`.
+- `ia.py` :
+  - cadence de réflexion différente selon la difficulté ;
+  - plans de construction distincts :
+    - Facile limité à obélisque/caserne/archerie ;
+    - Normal tech complète équilibrée ;
+    - Difficile expansion QG périphérique + tours + murailles ;
+  - assignation de bâtisseurs renforcée sur les chantiers critiques ;
+  - files de production et compositions d'armée différenciées ;
+  - garnison permanente au village (taille/type selon difficulté) ;
+  - réaction défensive en cas de menace locale (retour défendre la base) ;
+  - ciblage tactique des unités dangereuses (Normal/Difficile) ;
+  - repli stratégique à perte d'effectif, puis relance d'offensive par vagues.
+- `README.md` : section IA détaillée par mode (Facile/Normal/Difficile)
+  + version affichée mise à jour.
+
+### Tests
+- `python test_features.py` : OK (suite complète verte).
+- `python cristalis.py --autotest` : lancé, progression observée (`t=60s ...`),
+  pas d'erreur Python signalée.
+- `CRISTALIS_SMOKE=1 python cristalis.py` : lancé, progression observée
+  (`t=180s ...`), pas d'erreur Python signalée.
+
+### Notes
+- La refonte reste déterministe LAN : RNG global + état simulation uniquement.
+
 ## 2026-07-07 — Grandes cartes rétablies, fond de carte chunké — v0.15
 
 Sur demande de Bastien, retour aux tailles de cartes de la livraison v0.5→v0.13
