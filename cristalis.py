@@ -13,6 +13,7 @@ menus, netcode.
 """
 
 import random
+import time
 
 import data  # premier import : pose SDL_VIDEODRIVER pour les modes headless
 
@@ -21,11 +22,12 @@ import pygame
 # DEFAULT_CONFIG, MAP_SIZES et wait_handshake sont réexportés pour les
 # scripts de test (mp_sim.py, test_features.py).
 from data import (AUTOTEST, C_BAD, C_TEXT, DEFAULT_CONFIG, FACTION_NAMES,
-                  MAP_SIZES, NET_DELAY, SCREEN_H, SCREEN_W, SMOKE, TICK_DT,
-                  VERSION, VIEW_H)
+                  KA_INTERVAL, KA_TIMEOUT, MAP_SIZES, NET_DELAY, SCREEN_H,
+                  SCREEN_W, SMOKE, TICK_DT, VERSION, VIEW_H)
 from game import Game
-from menus import (MenuUI, game_options, global_key, lan_host, lan_join, menu,
-                   pick_difficulty, survival_options, wait_handshake)
+from menus import (MenuUI, game_options, global_key, inet_host, inet_join,
+                   lan_host, lan_join, menu, pick_difficulty,
+                   survival_options, wait_handshake)
 
 
 def run_autotest():
@@ -82,9 +84,13 @@ def run_solo(screen, clock, diff, config=None):
                 return "quit"
 
 
-def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
-    """Boucle LAN en lockstep : les deux machines simulent la même partie
-    et n'échangent que les commandes des joueurs. Renvoie "menu" ou "quit"."""
+def run_multiplayer(screen, clock, peer, local_pid, seed, config=None,
+                    net_delay=NET_DELAY):
+    """Boucle multijoueur (LAN ou Internet) en lockstep : les deux machines
+    simulent la même partie et n'échangent que les commandes des joueurs.
+    `net_delay` est choisi par l'hôte au handshake selon le RTT (identique
+    des deux côtés). Renvoie "menu" ou "quit"."""
+    nd = max(1, int(net_delay))
     random.seed(seed)
     game = Game(multiplayer=True, local_pid=local_pid, config=config)
     game.net = peer
@@ -92,12 +98,13 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
     # le ralenti étire la durée réelle d'un tick (la sim reste à TICK_DT)
     period = TICK_DT * game.speed
     # bundles[tick][pid] = liste de commandes ; les premiers ticks sont vides
-    bundles = {t: {0: [], 1: []} for t in range(NET_DELAY)}
+    bundles = {t: {0: [], 1: []} for t in range(nd)}
     my_hashes = {}
     acc = 0.0
     sent_until = 0
     stall = 0.0
     desync = False
+    last_ka = time.monotonic()
     while True:
         dt = min(clock.tick(60) / 1000, 0.1)
         for e in pygame.event.get():
@@ -111,6 +118,18 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
             peer.send(dict(t="bye"))
             return "menu"
 
+        # keepalive applicatif : par Internet une connexion peut mourir en
+        # silence (TCP ne le signale qu'au bout de minutes) — on émet un
+        # battement et on déclare le pair perdu après KA_TIMEOUT sans rien
+        # recevoir. Purement transport : la sim n'y touche pas.
+        now = time.monotonic()
+        if peer.alive:
+            if now - last_ka > KA_INTERVAL:
+                peer.send(dict(t="ka"))
+                last_ka = now
+            if now - peer.last_recv > KA_TIMEOUT:
+                peer.alive = False
+
         for msg in peer.poll():
             mt = msg.get("t")
             if mt == "tick":
@@ -122,6 +141,8 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
                         game.message("⚠ Désynchronisation détectée !", C_BAD, 10)
             elif mt == "bye":
                 peer.alive = False
+            # mt == "ka" : battement de cœur, rien à faire (last_recv est
+            # déjà mis à jour par Peer)
 
         game.scroll(dt, pygame.key.get_pressed())
         acc = min(acc + dt, 4 * period)
@@ -129,7 +150,7 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
         while acc >= period:
             t = game.tick
             if sent_until <= t:
-                out = dict(t="tick", n=t + NET_DELAY, cmds=game.outbox)
+                out = dict(t="tick", n=t + nd, cmds=game.outbox)
                 if t % 100 == 0:
                     h = game.state_hash()
                     my_hashes[t] = h
@@ -137,7 +158,7 @@ def run_multiplayer(screen, clock, peer, local_pid, seed, config=None):
                     for old in [k for k in my_hashes if k < t - 1000]:
                         del my_hashes[old]
                 peer.send(out)
-                bundles.setdefault(t + NET_DELAY, {})[local_pid] = game.outbox
+                bundles.setdefault(t + nd, {})[local_pid] = game.outbox
                 game.outbox = []
                 sent_until = t + 1
             b = bundles.get(t, {})
@@ -198,25 +219,27 @@ def main():
                 continue
             if run_solo(screen, clock, diff, cfg) == "quit":
                 break
-        elif choice == "host":
+        elif choice in ("host", "ihost"):
             cfg = game_options(screen, clock, ui, "Options de la partie (hôte)",
                                lan=True)
             if cfg is None:
                 continue
-            res = lan_host(screen, clock, ui, cfg)
+            hoster = lan_host if choice == "host" else inet_host
+            res = hoster(screen, clock, ui, cfg)
             if res is None:
                 continue
-            peer, seed = res
-            outcome = run_multiplayer(screen, clock, peer, 0, seed, cfg)
+            peer, seed, nd = res
+            outcome = run_multiplayer(screen, clock, peer, 0, seed, cfg, nd)
             peer.close()
             if outcome == "quit":
                 break
-        elif choice == "join":
-            res = lan_join(screen, clock, ui)
+        elif choice in ("join", "ijoin"):
+            joiner = lan_join if choice == "join" else inet_join
+            res = joiner(screen, clock, ui)
             if res is None:
                 continue
-            peer, seed, cfg = res
-            outcome = run_multiplayer(screen, clock, peer, 1, seed, cfg)
+            peer, seed, cfg, nd = res
+            outcome = run_multiplayer(screen, clock, peer, 1, seed, cfg, nd)
             peer.close()
             if outcome == "quit":
                 break

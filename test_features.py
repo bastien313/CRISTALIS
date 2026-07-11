@@ -6,13 +6,16 @@ Lancer :  python test_features.py
 Aucune fenêtre n'est ouverte (le flag --autotest force SDL_VIDEODRIVER=dummy).
 Couvre : sanitize_config, terrain chunké, opérations de brouillard, mode
 Survie zombie (préparation, invasion, remplacement, défaite, scores), menu
-pause / Échap, déterminisme de la sim.
+pause / Échap, déterminisme de la sim, relais Internet (codes de partie,
+appariement, handshake hello/ready/go, NET_DELAY adaptatif).
 """
 
+import asyncio
 import os
 import random
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 
 sys.argv.append("--autotest")  # data.py pose le driver vidéo dummy
@@ -214,6 +217,80 @@ def test_echap_et_menu_pause():
     print("OK Échap / menu pause / QUITTER / écran de fin")
 
 
+def test_net_delay_et_parse_addr():
+    import netcode
+    assert netcode.pick_net_delay(0.0) == netcode.NET_DELAY_MIN
+    assert netcode.pick_net_delay(0.3) == 7      # 300 ms → 6 ticks + 1
+    assert netcode.pick_net_delay(60.0) == netcode.NET_DELAY_MAX
+    assert netcode.parse_addr("10.0.0.2") == ("10.0.0.2", netcode.TCP_PORT)
+    assert netcode.parse_addr("10.0.0.2:8123") == ("10.0.0.2", 8123)
+    assert netcode.parse_addr("hote.fr:x") == ("hote.fr", netcode.TCP_PORT)
+    print("OK net_delay adaptatif et parse_addr")
+
+
+def test_relais_internet():
+    """Serveur relais local + vrai handshake réseau : code de partie,
+    appariement, hello/ready/go, tuyau transparent, code inconnu."""
+    import netcode
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "server"))
+    import relay
+
+    loop = asyncio.new_event_loop()
+    started = threading.Event()
+    info = {}
+
+    def run_loop():
+        asyncio.set_event_loop(loop)
+        srv = loop.run_until_complete(relay.serve(port=0, host="127.0.0.1"))
+        info["port"] = srv.sockets[0].getsockname()[1]
+        started.set()
+        loop.run_forever()
+
+    threading.Thread(target=run_loop, daemon=True).start()
+    assert started.wait(5), "le relais ne démarre pas"
+    addr = f"127.0.0.1:{info['port']}"
+
+    # code inconnu → refus propre
+    p, err = netcode.relay_join("ZZZZ-9", addr)
+    assert p is None and err, (p, err)
+
+    # hébergement : le relais fournit un code de partie
+    host_peer, code = netcode.relay_host(addr)
+    assert host_peer is not None and "-" in code, code
+
+    cfg = dict(data.DEFAULT_CONFIG)
+    result = {}
+
+    def host_side():
+        if netcode.wait_msg(host_peer, "paired", 8) is not None:
+            result["nd"] = netcode.host_handshake(host_peer, 1234, cfg,
+                                                  sys.version_info[:2])
+
+    ht = threading.Thread(target=host_side, daemon=True)
+    ht.start()
+    join_peer, err = netcode.relay_join(code, addr)
+    assert join_peer is not None, err
+    res = netcode.join_handshake(join_peer)
+    assert res is not None, "handshake invité échoué"
+    hello, nd = res
+    ht.join(10)
+    assert result.get("nd") == nd and nd >= netcode.NET_DELAY_MIN, (result, nd)
+    assert hello["seed"] == 1234 and hello["cfg"]["map"] == cfg["map"]
+
+    # après appariement le relais est un tuyau transparent, dans les 2 sens
+    host_peer.send(dict(t="tick", n=3, cmds=[]))
+    msg = netcode.wait_msg(join_peer, "tick", 5)
+    assert msg is not None and msg["n"] == 3, msg
+    join_peer.send(dict(t="ka"))
+    assert netcode.wait_msg(host_peer, "ka", 5) is not None
+    assert join_peer.last_recv > 0  # keepalive : horodatage de réception tenu
+
+    host_peer.close()
+    join_peer.close()
+    loop.call_soon_threadsafe(loop.stop)
+    print("OK relais Internet : code, appariement, handshake, tuyau transparent")
+
+
 def test_determinisme():
     """Deux sims identiques (même seed) doivent rester synchrones : garde-fou
     lockstep, vérifie que les nouveautés ne consomment pas le RNG en partie
@@ -237,5 +314,7 @@ if __name__ == "__main__":
     test_survie_invasion_et_remplacement()
     test_survie_defaite_et_score()
     test_echap_et_menu_pause()
+    test_net_delay_et_parse_addr()
+    test_relais_internet()
     test_determinisme()
     print("\nTous les tests sont passés.")

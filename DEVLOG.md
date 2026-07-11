@@ -3,6 +3,67 @@
 Journal de développement. Une entrée par session de travail, la plus récente en haut.
 Format : date — résumé, détails par fonctionnalité, tests effectués, dettes/TODO.
 
+## 2026-07-11 — Multijoueur par Internet : serveur relais + codes de partie — v0.17
+
+Mise en œuvre de l'option C du rapport réseau (`rapport_reseau/01`) : jouer
+par Internet sans ouvrir de port, via un serveur relais sur VPS. Choix
+technique : **TCP brut conservé** (la classe `Peer` est réutilisée telle
+quelle) plutôt que WebSocket — la version navigateur étant écartée pour le
+moment, WebSocket n'apportait qu'une dépendance et du TLS à gérer. Le relais
+étant un tuyau agnostique, un écouteur WebSocket pourra s'y ajouter plus tard
+sans toucher au client natif.
+
+### Nouveautés
+- `server/relay.py` (nouveau, stdlib asyncio uniquement) : l'hôte reçoit un
+  code de partie court (`AZUR-7`), l'invité entre le code, le serveur apparie
+  les deux connexions et fait suivre les octets sans regarder le contenu.
+  Codes sans caractères ambigus, expiration (30 s handshake, 10 min
+  d'attente), libération du code si l'hôte quitte l'écran d'attente.
+- `netcode.py` :
+  - `connect(ip, port)` paramétrable et `parse_addr` (« ip » ou « ip:port »,
+    utile aussi pour un tunnel type playit.gg) ;
+  - `relay_host` / `relay_join` : établissement de connexion via le relais
+    (adresse : constante `RELAY_ADDR` ou variable d'env `CRISTALIS_RELAY`) ;
+  - `host_handshake` / `join_handshake` : échange hello/ready/go commun
+    LAN/Internet — l'hôte mesure le RTT sur le ready et choisit un
+    **NET_DELAY adaptatif** (`pick_net_delay`, borné 3..12 ticks) envoyé au
+    client : identique des deux côtés, lockstep préservé ;
+  - `Peer.last_recv` (horodatage de réception) pour le keepalive.
+- `cristalis.py` : `run_multiplayer(..., net_delay)` (plus de constante en
+  dur) + **keepalive applicatif** (`ka` toutes les 2 s, pair déclaré perdu
+  après 10 s de silence — par Internet, TCP peut mettre des minutes à
+  signaler une connexion morte). Constantes `KA_INTERVAL`/`KA_TIMEOUT` dans
+  `data.py`.
+- `menus.py` : menu principal à 5 entrées (+ « Héberger (Internet) » et
+  « Rejoindre (Internet) »), écran d'attente avec code en gros, écran de
+  saisie du code ; le champ LAN accepte désormais `ip:port`.
+
+### Correction de bug (préexistant, révélé par les tests)
+- `wait_msg`/`wait_handshake` jetait les messages reçus dans la même rafale
+  après le message attendu (ex. un `hello` collé au `paired`, ou les premiers
+  `tick` collés au `go`). `Peer.inbox` passe de `queue.Queue` à `deque` et
+  les messages non consommés sont remis en tête.
+
+### Tests
+- `python test_features.py` : suite complète verte, dont 2 nouveaux tests —
+  `test_net_delay_et_parse_addr` et `test_relais_internet` (vrai serveur
+  relais local + handshake réseau complet + tuyau transparent + code inconnu).
+- Lockstep 2 processus **à travers le relais** (mp_sim recréé dans le
+  scratchpad) : 1200 ticks, 4 joueurs (2 humains muets + 2 IA), `state_hash`
+  identiques host/join à chaque relevé.
+- `python cristalis.py --autotest` : se déroule sans erreur ; « pas de
+  vainqueur en 45 min » sur la seed 42, vérifié **identique en v0.16**
+  (git stash) — préexistant à cette session (IA v0.16 très défensive), la
+  sim n'est pas touchée ici.
+- `CRISTALIS_SMOKE=1 python cristalis.py` : OK.
+- Rendu vérifié par captures headless : menu 5 boutons et écran « code de
+  partie » corrects.
+
+### Dettes / TODO
+- Déployer `server/relay.py` sur un VPS et renseigner `RELAY_ADDR`.
+- L'autotest sans vainqueur en 45 min (hérité v0.16) mériterait un
+  rééquilibrage de l'agressivité IA.
+
 ## 2026-07-09 — Refonte IA par difficulté (éco/build/defense/attaque) — v0.16
 
 Refonte du contrôleur `AIController` pour coller aux rôles demandés par mode.
