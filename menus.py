@@ -126,13 +126,16 @@ class MenuUI:
 
 
 def menu(screen, clock, ui):
-    """Écran principal : renvoie "solo" / "host" / "join" / None (quitter)."""
+    """Écran principal : renvoie "solo" / "host" / "join" / "ihost" /
+    "ijoin" / None (quitter)."""
     if SMOKE:
         return "solo"
     items = [("solo", "Solo", "Affrontez l'intelligence artificielle"),
              ("host", "Héberger (LAN)", "Créez une partie sur le réseau local"),
-             ("join", "Rejoindre (LAN)", "Rejoignez la partie d'un ami")]
-    btns = [(pygame.Rect(SCREEN_W / 2 - 160, 348 + i * 82, 320, 64), key, lab, desc)
+             ("join", "Rejoindre (LAN)", "Rejoignez la partie d'un ami"),
+             ("ihost", "Héberger (Internet)", "Créez une partie via le relais"),
+             ("ijoin", "Rejoindre (Internet)", "Entrez le code d'une partie")]
+    btns = [(pygame.Rect(SCREEN_W / 2 - 160, 336 + i * 70, 320, 58), key, lab, desc)
             for i, (key, lab, desc) in enumerate(items)]
     while True:
         dt = clock.tick(60) / 1000
@@ -426,18 +429,38 @@ def sl_removable(cfg, i, lan):
 
 
 def wait_handshake(peer, want, timeout=6.0):
-    """Attend un message réseau de type `want` ; renvoie le message ou None."""
-    t0 = time.monotonic()
-    while time.monotonic() - t0 < timeout and peer.alive:
-        for msg in peer.poll():
-            if msg.get("t") == want:
-                return msg
-        time.sleep(0.02)
-    return None
+    """Attend un message réseau de type `want` ; renvoie le message ou None.
+    (Alias conservé pour les scripts de test ; logique dans netcode.)"""
+    return netcode.wait_msg(peer, want, timeout)
+
+
+def finish_host(screen, clock, ui, peer, cfg):
+    """Fin du handshake côté hôte (hello → ready → go) : renvoie
+    (peer, seed, net_delay) ou None après affichage de l'erreur."""
+    seed = random.randrange(1 << 30)
+    nd = netcode.host_handshake(peer, seed, cfg, sys.version_info[:2])
+    if nd is None:
+        peer.close()
+        return show_net_error(screen, clock, ui, "Le joueur ne répond pas.")
+    return peer, seed, nd
+
+
+def finish_join(peer):
+    """Fin du handshake côté invité : renvoie ((peer, seed, cfg, nd), "")
+    ou (None, message d'erreur)."""
+    res = netcode.join_handshake(peer)
+    if res is None:
+        peer.close()
+        return None, "L'hôte ne répond pas."
+    hello, nd = res
+    if hello.get("ver") != list(sys.version_info[:2]):
+        print("Attention : versions de Python différentes entre les machines, "
+              "risque de désynchronisation.")
+    return (peer, hello["seed"], hello.get("cfg", dict(DEFAULT_CONFIG)), nd), ""
 
 
 def lan_host(screen, clock, ui, cfg):
-    """Héberge une partie : renvoie (peer, seed) ou None (retour).
+    """Héberge une partie : renvoie (peer, seed, net_delay) ou None (retour).
     Les options `cfg` sont envoyées au client avec la seed (lockstep)."""
     try:
         listener = netcode.HostListener()
@@ -458,14 +481,7 @@ def lan_host(screen, clock, ui, cfg):
             peer = listener.poll()
             if peer is not None:
                 listener.close()
-                seed = random.randrange(1 << 30)
-                peer.send(dict(t="hello", seed=seed, pid=1,
-                               ver=list(sys.version_info[:2]), cfg=cfg))
-                if wait_handshake(peer, "ready") is None:
-                    peer.close()
-                    return show_net_error(screen, clock, ui,
-                                          "Le joueur ne répond pas.")
-                return peer, seed
+                return finish_host(screen, clock, ui, peer, cfg)
             ui.frame(screen, dt, "Partie en réseau local — vous serez l'Ordre d'Azur")
             dots = "." * (1 + int(ui.t * 2) % 3)
             ui.line(screen, "En attente d'un autre joueur" + dots, 380,
@@ -479,29 +495,24 @@ def lan_host(screen, clock, ui, cfg):
 
 
 def lan_join(screen, clock, ui):
-    """Rejoint une partie : renvoie (peer, seed, cfg) ou None (retour)."""
+    """Rejoint une partie : renvoie (peer, seed, cfg, net_delay) ou None
+    (retour). L'adresse acceptée est « ip » ou « ip:port » (utile pour un
+    tunnel type playit.gg dont le port public n'est pas 45455)."""
     disco = netcode.Discovery()
     ip_text = ""
     error = ""
 
-    def try_connect(ip):
+    def try_connect(text):
         # affiche l'état pendant la connexion (bloquante, 3 s max)
         ui.frame(screen, 0, "Partie en réseau local")
-        ui.line(screen, f"Connexion à {ip}…", 400, (226, 230, 238), big=True)
+        ui.line(screen, f"Connexion à {text}…", 400, (226, 230, 238), big=True)
         pygame.display.flip()
         try:
-            peer = netcode.connect(ip)
-        except OSError:
-            return None, "Connexion impossible à " + ip
-        hello = wait_handshake(peer, "hello")
-        if hello is None:
-            peer.close()
-            return None, "L'hôte ne répond pas."
-        if hello.get("ver") != list(sys.version_info[:2]):
-            print("Attention : versions de Python différentes entre les machines, "
-                  "risque de désynchronisation.")
-        peer.send(dict(t="ready"))
-        return (peer, hello["seed"], hello.get("cfg", dict(DEFAULT_CONFIG))), ""
+            ip, port = netcode.parse_addr(text)
+            peer = netcode.connect(ip, port)
+        except (OSError, ValueError):
+            return None, "Connexion impossible à " + text
+        return finish_join(peer)
 
     try:
         while True:
@@ -522,7 +533,7 @@ def lan_join(screen, clock, ui):
                             return res
                     elif e.key == pygame.K_BACKSPACE:
                         ip_text = ip_text[:-1]
-                    elif e.unicode in "0123456789." and len(ip_text) < 15:
+                    elif e.unicode in "0123456789.:" and len(ip_text) < 21:
                         ip_text += e.unicode
                 if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                     for r, ip in host_btns:
@@ -531,8 +542,8 @@ def lan_join(screen, clock, ui):
                             if res is not None:
                                 return res
             ui.frame(screen, dt, "Partie en réseau local — vous serez la Légion Karmin")
-            ui.line(screen, "Adresse IP de l'hôte (Entrée pour rejoindre) :", 352,
-                    (200, 208, 222))
+            ui.line(screen, "Adresse de l'hôte — ip ou ip:port (Entrée pour rejoindre) :",
+                    352, (200, 208, 222))
             box = pygame.Rect(SCREEN_W / 2 - 160, 380, 320, 40)
             pygame.draw.rect(screen, (16, 18, 26), box)
             pygame.draw.rect(screen, (96, 108, 132), box, 1)
@@ -554,14 +565,102 @@ def lan_join(screen, clock, ui):
         disco.close()
 
 
-def show_net_error(screen, clock, ui, msg):
+def inet_host(screen, clock, ui, cfg):
+    """Héberge une partie Internet via le relais : renvoie
+    (peer, seed, net_delay) ou None (retour)."""
+    peer, code = netcode.relay_host()
+    if peer is None:
+        return show_net_error(screen, clock, ui, code, "Partie par Internet")
+    try:
+        while True:
+            dt = clock.tick(60) / 1000
+            for e in pygame.event.get():
+                if global_key(e):
+                    continue
+                if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN
+                                             and e.key == pygame.K_ESCAPE):
+                    peer.close()
+                    return None
+            if not peer.alive:
+                peer.close()
+                return show_net_error(screen, clock, ui,
+                                      "Connexion au relais perdue.",
+                                      "Partie par Internet")
+            for msg in peer.poll():
+                if msg.get("t") == "paired":
+                    return finish_host(screen, clock, ui, peer, cfg)
+            ui.frame(screen, dt, "Partie par Internet — vous serez l'Ordre d'Azur")
+            dots = "." * (1 + int(ui.t * 2) % 3)
+            ui.line(screen, "En attente d'un autre joueur" + dots, 372,
+                    (226, 230, 238), big=True)
+            ui.line(screen, "Code de la partie :", 420, (200, 208, 222))
+            c = ui.font_h.render(code, True, C_CRYSTAL)
+            screen.blit(c, c.get_rect(center=(SCREEN_W / 2, 480)))
+            ui.line(screen, "Votre ami doit choisir « Rejoindre (Internet) » "
+                    "et entrer ce code.", 536, (150, 158, 174))
+            ui.line(screen, f"Relais : {netcode.RELAY_ADDR}", 566, (120, 128, 144))
+            pygame.display.flip()
+    except Exception:
+        peer.close()
+        raise
+
+
+def inet_join(screen, clock, ui):
+    """Rejoint une partie Internet par son code : renvoie
+    (peer, seed, cfg, net_delay) ou None (retour)."""
+    code_text = ""
+    error = ""
+
+    def try_join(code):
+        ui.frame(screen, 0, "Partie par Internet")
+        ui.line(screen, "Connexion au relais…", 400, (226, 230, 238), big=True)
+        pygame.display.flip()
+        peer, err = netcode.relay_join(code)
+        if peer is None:
+            return None, err
+        return finish_join(peer)
+
+    while True:
+        dt = clock.tick(60) / 1000
+        for e in pygame.event.get():
+            if global_key(e):
+                continue
+            if e.type == pygame.QUIT or (e.type == pygame.KEYDOWN
+                                         and e.key == pygame.K_ESCAPE):
+                return None
+            if e.type == pygame.KEYDOWN:
+                if e.key == pygame.K_RETURN and code_text:
+                    res, error = try_join(code_text)
+                    if res is not None:
+                        return res
+                elif e.key == pygame.K_BACKSPACE:
+                    code_text = code_text[:-1]
+                elif e.unicode and (e.unicode.isalnum() or e.unicode == "-") \
+                        and len(code_text) < 12:
+                    code_text += e.unicode.upper()
+        ui.frame(screen, dt, "Partie par Internet — vous serez la Légion Karmin")
+        ui.line(screen, "Code de la partie (Entrée pour rejoindre) :", 372,
+                (200, 208, 222))
+        box = pygame.Rect(SCREEN_W / 2 - 160, 402, 320, 48)
+        pygame.draw.rect(screen, (16, 18, 26), box)
+        pygame.draw.rect(screen, (96, 108, 132), box, 1)
+        cursor = "|" if int(ui.t * 2) % 2 == 0 else " "
+        txt = ui.font_b.render(code_text + cursor, True, (236, 240, 248))
+        screen.blit(txt, (box.x + 12, box.y + 12))
+        ui.line(screen, f"Relais : {netcode.RELAY_ADDR}", 470, (120, 128, 144))
+        if error:
+            ui.line(screen, error, SCREEN_H - 64, C_BAD)
+        pygame.display.flip()
+
+
+def show_net_error(screen, clock, ui, msg, subtitle="Partie en réseau local"):
     t0 = time.monotonic()
     while time.monotonic() - t0 < 2.5:
         dt = clock.tick(60) / 1000
         for e in pygame.event.get():
             if e.type in (pygame.QUIT, pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 return None
-        ui.frame(screen, dt, "Partie en réseau local")
+        ui.frame(screen, dt, subtitle)
         ui.line(screen, msg, 400, C_BAD, big=True)
         pygame.display.flip()
     return None

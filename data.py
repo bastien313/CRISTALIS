@@ -19,7 +19,7 @@ import pygame
 
 # Compteur de version : à incrémenter à chaque modification du code.
 # Affiché au démarrage (menu + titre de fenêtre).
-VERSION = "0.16"
+VERSION = "0.17"
 
 TILE = 32
 # clé -> (nom affiché, largeur en cases, hauteur en cases, joueurs max)
@@ -38,9 +38,17 @@ EDGE_SCROLL = 18
 CAM_SPEED = 520
 
 # Multijoueur : simulation à pas fixe, les commandes émises au tick T
-# sont exécutées au tick T + NET_DELAY sur les deux machines.
+# sont exécutées au tick T + net_delay sur les deux machines. NET_DELAY est
+# la valeur par défaut/minimale ; l'hôte peut en choisir une plus grande au
+# handshake selon le RTT mesuré (netcode.pick_net_delay) — identique des
+# deux côtés, lockstep préservé.
 TICK_DT = 1 / 20
 NET_DELAY = 3
+# Keepalive applicatif : battement émis toutes les KA_INTERVAL s ; pair
+# déclaré perdu après KA_TIMEOUT s sans rien recevoir (une connexion
+# Internet peut mourir en silence, TCP ne le signale qu'après des minutes).
+KA_INTERVAL = 2.0
+KA_TIMEOUT = 10.0
 
 MAX_PLAYERS = 8
 ZOMBIE_PID = 8     # pid réservé au joueur neutre zombie (couleur 9 de art.py)

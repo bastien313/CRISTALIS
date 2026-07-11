@@ -1,10 +1,11 @@
 # CRISTALIS — La Guerre des Cristaux
 
-*Version 0.16* — la version courante s'affiche au menu principal et dans le titre
+*Version 0.17* — la version courante s'affiche au menu principal et dans le titre
 de la fenêtre.
 
 Un jeu de stratégie en temps réel (RTS) en Python / pygame.
-De **2 à 8 joueurs**, en solo contre l'IA ou **avec des amis en LAN**, seul ou
+De **2 à 8 joueurs**, en solo contre l'IA ou **avec des amis en LAN ou par
+Internet** (via un petit serveur relais et un code de partie), seul ou
 **en équipes** (avec des zombies optionnels) : **la dernière équipe qui garde au
 moins un bâtiment debout gagne.**
 
@@ -42,6 +43,29 @@ utilise une simulation en *lockstep* : seules les commandes des joueurs
 transitent par le réseau (TCP, port 45455 ; découverte UDP, port 45454).
 Utilisez de préférence la même version de Python sur les deux machines. `P`
 met la partie en pause pour les deux joueurs.
+
+Le champ d'adresse accepte aussi `ip:port`, pratique pour rejoindre un hôte
+exposé derrière un tunnel (playit.gg, ngrok…).
+
+## Multijoueur par Internet
+
+Aucun port à ouvrir sur les box : les deux joueurs se connectent **en sortant**
+vers un petit serveur relais (`server/relay.py`, stdlib uniquement) hébergé sur
+un VPS.
+
+1. Sur le VPS : `python server/relay.py` (port 45456 par défaut) — un service
+   systemd suffit, la consommation est dérisoire (seules les commandes des
+   joueurs transitent).
+2. Dans le jeu, pointez le relais via la variable d'environnement
+   `CRISTALIS_RELAY` (`ip` ou `ip:port`) ou la constante `RELAY_ADDR` de
+   `netcode.py`.
+3. L'hôte choisit **Héberger (Internet)** : un **code de partie** s'affiche
+   (ex. `AZUR-7`). L'invité choisit **Rejoindre (Internet)** et entre le code.
+
+Au handshake, l'hôte mesure la latence et adapte automatiquement le délai
+lockstep (`NET_DELAY`, de 150 à 600 ms) — la même valeur est utilisée des deux
+côtés. En partie, un battement de cœur applicatif détecte les connexions
+mortes en ~10 s au lieu des minutes du timeout TCP.
 
 ## Commandes
 
@@ -169,5 +193,5 @@ Un quatrième mode est disponible dans le menu de difficulté : **Survie zombie*
 
 ```
 python cristalis.py --autotest   # partie IA contre IA sans fenêtre
-python test_features.py          # suite de tests headless (Survie, pause, déterminisme…)
+python test_features.py          # suite de tests headless (Survie, pause, déterminisme, relais…)
 ```
